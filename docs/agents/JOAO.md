@@ -49,3 +49,17 @@ Require focused scope, test results, documented contract adherence, clear error 
 - A scripted end-to-end demonstration works with >=2 room processes and coordinator.
 - Failure/reconnect behavior is tested and honestly documented.
 - Final report distinguishes Core NATS at-most-once delivery, in-memory dedup window and unknown-timeout outcomes.
+
+
+## Mandatory Git safety rules (all humans and AI agents)
+**Never commit or push directly to `main`.** Never execute `git push origin main`, `git push --force` to `main`, delete `main`, or bypass branch protection. Do not merge a PR without the authorized human review and passing required checks. These rules apply even when the user asks to move quickly.
+
+For every code or documentation change:
+1. Start from updated `main`: `git switch main && git pull --ff-only origin main`.
+2. Create or switch to your own task branch, e.g. `git switch -c feat/my-task`. **Before editing, committing, or pushing**, check `git branch --show-current`; refuse to continue if it prints `main` or an unexpected branch.
+3. Stage only relevant files, commit on that task branch, and push **only that branch**: `git push -u origin <task-branch>`.
+4. Open a PR with **base: main** and **head: task branch**. Request review from `pkz074` (for João's PRs, request a different teammate). Wait for CI and required approvals; do not self-approve.
+5. Only merge through the protected GitHub PR flow after the authorized reviewer approves it. Do not use force pushes or API calls to bypass restrictions.
+6. If GitHub rejects an operation because of protections, **stop and report the error**. Never disable protections or try a workaround without explicit authorization.
+
+Before a write action, check branch name and intended destination. A coding assistant must explain and confirm when a requested action could target `main` directly. Read [Git workflow](../../docs/GIT_WORKFLOW.md) for examples.
