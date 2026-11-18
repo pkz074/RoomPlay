@@ -92,7 +92,7 @@ Request to `roomplay.rooms.{id}.get_state`: `{"request_id":"read-123"}`.
 Reply: `{"request_id":"read-123","success":true,"state":<PlaybackState>,"error":null}` (same format as command reply).
 Publication to `roomplay.rooms.{id}.state`:
 ```json
-{"room_id":"bedroom","instance_id":"f7d4a0","registration_token":"lease-456","state":{"status":"playing","current":null,"position_ms":0,"history":[],"queue":[],"version":1}}
+{"room_id":"bedroom","instance_id":"f7d4a0","registration_token":"lease-456","state":{"status":"playing","current":{"id":"item-1","track_id":"track-1"},"position_ms":0,"history":[],"queue":[],"version":1}}
 ```
 Coordinator accepts event only from current registration, and only if its version is newer than the last cached version for that instance. Explicit authoritative state query on recovery refreshes cache. A state event should be emitted on meaningful state changes, including natural track completion.
 
@@ -122,7 +122,7 @@ Room listing example:
 ```json
 {"rooms":[{"id":"bedroom","name":"Bedroom","instance_id":"f7d4a0","availability":"online","last_seen":"2026-11-18T16:00:00Z","state":{"status":"playing","current":null,"position_ms":0,"history":[],"queue":[],"version":1},"state_stale":false}]}
 ```
-The above is a shape example (actual playing state must have a non-null current); implementations/tests should enforce that invariant and populate valid snapshots.
+This is a shape example; implementations/tests must enforce that playing and paused states have a non-null current track.
 
 ## SSE
 Single browser EventSource at `GET /api/v1/events`, `Content-Type: text/event-stream`. Named events:
