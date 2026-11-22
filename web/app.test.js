@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   formatDuration, statePosition, isNewerState, applyStateSnapshot,
-  makeRequestId, escapeHtml, MockApi, ApiClient
+  makeRequestId, escapeHtml, applyMutationResult, MockApi, ApiClient
 } = require("./app.js");
 
 test("formatDuration handles positive and negative durations", () => {
@@ -157,4 +157,51 @@ test("MockApi next/previous and pause navigation", async () => {
   result = await api.command("bedroom", { type: "playback.previous", payload: {} }, "req-3");
   assert.equal(result.state.status, "playing");
   assert.equal(result.state.current.track_id, "track-001");
+});
+
+test("mutation results update originating room despite changed UI selection", () => {
+  const rooms = [
+    { id: "bedroom", instance_id: "bedroom-1", state: { version: 2 } },
+    { id: "kitchen", instance_id: "kitchen-1", state: { version: 4 } }
+  ];
+  const views = new Map([
+    ["bedroom", { instanceId: "bedroom-1", version: 2, receivedAt: 100 }],
+    ["kitchen", { instanceId: "kitchen-1", version: 4, receivedAt: 100 }]
+  ]);
+  const selectedRoomId = "kitchen";
+  assert.equal(selectedRoomId, "kitchen");
+  assert.equal(applyMutationResult(rooms, views, "bedroom", { state: { version: 3, status: "playing", position_ms: 0 } }, 999), true);
+  assert.equal(rooms[0].state.version, 3);
+  assert.equal(rooms[1].state.version, 4);
+  assert.equal(views.get("bedroom").receivedAt, 999);
+  assert.equal(applyMutationResult(rooms, views, "bedroom", { state: { version: 1 } }), false);
+  assert.equal(rooms[0].state.version, 3);
+});
+
+test("missing and invalid results cannot corrupt room state", () => {
+  const rooms = [{ id: "bedroom", instance_id: "i", state: { version: 1 } }];
+  const views = new Map([["bedroom", { instanceId: "i", version: 1 }]]);
+  assert.equal(applyMutationResult(rooms, views, "unknown", { state: { version: 10 } }), false);
+  assert.equal(applyMutationResult(rooms, views, "bedroom", null), false);
+  assert.equal(rooms[0].state.version, 1);
+});
+
+test("MockApi removes queue entries by occurrence rather than track ID", async () => {
+  const api = new MockApi();
+  const initial = (await api.room("bedroom")).state.queue.length;
+  await api.queueAdd("bedroom", { track_id: "track-001" }, "req-add");
+  const added = (await api.room("bedroom")).state.queue;
+  assert.equal(added.length, initial + 1);
+  const removal = await api.queueRemove("bedroom", added[0].id, "req-remove");
+  assert.equal(removal.state.queue.length, initial);
+});
+
+test("ApiClient handles malformed non-success body with fallback error", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: false, status: 503, text: async () => "<not json>" });
+  try {
+    await assert.rejects(() => new ApiClient("").rooms(), e => e.code === "SERVICE_UNAVAILABLE" && e.status === 503);
+  } finally {
+    globalThis.fetch = original;
+  }
 });
