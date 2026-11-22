@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#171a21">
+  <title>RoomPlay Controller</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="RoomPlay home">
+        <span class="brand-mark" aria-hidden="true">RP</span>
+        <span>RoomPlay</span>
+      </a>
+      <div id="connectionBadge" class="connection-badge" role="status" aria-live="polite">
+        Connecting
+      </div>
+    </header>
+
+    <main>
+      <section class="rooms-section" aria-labelledby="roomsHeading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Listening spaces</p>
+            <h1 id="roomsHeading">Rooms</h1>
+          </div>
+          <button id="refreshRooms" class="icon-button" type="button" aria-label="Refresh rooms">↻</button>
+        </div>
+        <div id="roomList" class="room-list" aria-live="polite"></div>
+      </section>
+
+      <section class="player-section" aria-labelledby="nowPlayingHeading">
+        <div class="player-card">
+          <div class="player-header">
+            <div>
+              <p class="eyebrow">Now in</p>
+              <h2 id="selectedRoomName">No room selected</h2>
+            </div>
+            <details id="secondaryMenu" class="secondary-menu">
+              <summary>More actions</summary>
+              <div class="menu-actions">
+                <button id="stopButton" type="button" class="danger">Stop playback</button>
+                <button id="clearQueueButton" type="button">Clear queue</button>
+              </div>
+            </details>
+          </div>
+
+          <div id="playerContent" class="player-content">
+            <div class="empty-state">Select an online room to begin.</div>
+          </div>
+
+          <div class="transport" aria-label="Playback controls">
+            <button id="previousButton" class="transport-button" type="button" aria-label="Previous track">|‹</button>
+            <button id="primaryButton" class="transport-button primary" type="button" aria-label="Play or pause">▶</button>
+            <button id="nextButton" class="transport-button" type="button" aria-label="Next track">›|</button>
+          </div>
+        </div>
+
+        <div class="history-card">
+          <div class="section-heading compact">
+            <h2>History</h2>
+          </div>
+          <div id="historyList" class="item-list"></div>
+        </div>
+      </section>
+
+      <aside class="library-section" aria-labelledby="libraryHeading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Licensed music</p>
+            <h2 id="libraryHeading">Catalog</h2>
+          </div>
+        </div>
+        <div id="trackList" class="track-list" aria-live="polite"></div>
+      </aside>
+    </main>
+  </div>
+
+  <div id="toastRegion" class="toast-region" role="region" aria-label="Notifications" aria-live="assertive"></div>
+  <script src="./app.js" defer></script>
+</body>
+</html>
