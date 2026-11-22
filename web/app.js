@@ -41,6 +41,17 @@
     };
   }
 
+  // Apply a command response to the room that originated the request, not the selected UI room.
+  function applyMutationResult(rooms, roomViews, roomId, result, receivedAt = Date.now()) {
+    const room = rooms.find((entry) => entry.id === roomId);
+    if (!room || !result?.state) return false;
+    const resolved = applyStateSnapshot(room, roomViews.get(roomId), result.state, room.instance_id, false, receivedAt);
+    if (!resolved) return false;
+    Object.assign(room, resolved.room);
+    roomViews.set(roomId, resolved.view);
+    return true;
+  }
+
   function escapeHtml(value) {
     return String(value ?? "")
       .replaceAll("&", "&amp;")
@@ -167,7 +178,7 @@
     });
   }
 
-  const appExports = { formatDuration, makeRequestId, statePosition, isNewerState, applyStateSnapshot, escapeHtml, MockApi, ApiClient };
+  const appExports = { formatDuration, makeRequestId, statePosition, isNewerState, applyStateSnapshot, applyMutationResult, escapeHtml, MockApi, ApiClient };
   if (typeof module !== "undefined" && module.exports) module.exports = appExports;
 
   function startApp() {
@@ -430,14 +441,7 @@
       setControlsDisabled(true);
       try {
         const result = await operation();
-        if (result?.state) {
-          const room = rooms.find((entry) => entry.id === roomId);
-          if (room && isNewerState(roomView.get(roomId), result.state, room.instance_id)) {
-            room.state = result.state;
-            room.state_stale = false;
-            updateRoomView(room);
-          }
-        }
+        applyMutationResult(rooms, roomView, roomId, result);
         if (successMessage) toast(successMessage, "success");
         renderRooms();
         renderPlayer();
