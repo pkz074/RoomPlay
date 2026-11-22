@@ -27,9 +27,14 @@ func main() {
 		log.Fatalf("load catalog: %v", err)
 	}
 
+	libraryServer, err := library.NewServer(catalog, audioRoot)
+	if err != nil {
+		log.Fatalf("initialize library: %v", err)
+	}
+	defer libraryServer.Close()
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           library.NewServer(catalog, audioRoot).Handler(),
+		Handler:           libraryServer.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		IdleTimeout:       60 * time.Second,

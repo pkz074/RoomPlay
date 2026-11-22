@@ -20,7 +20,12 @@ func testServer(t *testing.T) (*Server, string) {
 	if err := os.WriteFile(filepath.Join(root, "track-001.mp3"), []byte("test-mp3"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	return NewServer(catalog, root), root
+	server, err := NewServer(catalog, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = server.Close() })
+	return server, root
 }
 
 func TestTracks(t *testing.T) {
@@ -40,6 +45,15 @@ func TestTracks(t *testing.T) {
 	tracks, ok := response["tracks"].([]any)
 	if !ok || len(tracks) != 1 {
 		t.Fatalf("tracks = %#v", response["tracks"])
+	}
+	track := tracks[0].(map[string]any)
+	if track["id"] != "track-001" || track["title"] != "Demo" || track["artist"] != "Artist" || track["duration_ms"] != float64(210000) || track["url"] != "http://192.0.2.10:8090/audio/track-001.mp3" {
+		t.Fatalf("unexpected public track: %#v", track)
+	}
+	for _, private := range []string{"audio_file", "source", "license", "license_url", "attribution"} {
+		if _, leaked := track[private]; leaked {
+			t.Errorf("private field leaked: %s", private)
+		}
 	}
 }
 

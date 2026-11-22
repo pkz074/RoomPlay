@@ -2,9 +2,9 @@ package library
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -13,12 +13,22 @@ import (
 
 type Server struct {
 	catalog   *Catalog
-	audioRoot string
+	audioRoot *os.Root
 }
 
-func NewServer(catalog *Catalog, audioRoot string) *Server {
-	return &Server{catalog: catalog, audioRoot: audioRoot}
+func NewServer(catalog *Catalog, audioRoot string) (*Server, error) {
+	if catalog == nil {
+		return nil, fmt.Errorf("catalog is required")
+	}
+	root, err := os.OpenRoot(audioRoot)
+	if err != nil {
+		return nil, fmt.Errorf("open audio root: %w", err)
+	}
+	return &Server{catalog: catalog, audioRoot: root}, nil
 }
+
+// Close releases the directory handle after all HTTP requests have finished.
+func (s *Server) Close() error { return s.audioRoot.Close() }
 
 func (s *Server) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -35,6 +45,7 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) handleTracks(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Only GET is supported.")
 		return
 	}
@@ -46,6 +57,7 @@ func (s *Server) handleTracks(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAudio(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		w.Header().Set("Allow", "GET, HEAD")
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Only GET and HEAD are supported.")
 		return
 	}
@@ -62,8 +74,9 @@ func (s *Server) handleAudio(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	path := filepath.Join(s.audioRoot, entry.AudioFile)
-	file, err := os.Open(path)
+	// Root.Open confines symlink resolution to the opened directory, including
+	// when a link is replaced concurrently. Do not replace this with check-then-open.
+	file, err := s.audioRoot.Open(entry.AudioFile)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "track_not_found", "Audio file is unavailable.")
 		return
