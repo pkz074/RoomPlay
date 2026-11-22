@@ -21,13 +21,24 @@
     return Number(state.position_ms || 0) + Math.max(0, Date.now() - receivedAt);
   }
 
-  function isNewerState(current, incoming, incomingInstanceId) {
+  // Only an authoritative REST snapshot may establish a new room instance.
+  // Otherwise a delayed event from an old instance could overwrite the new one.
+  function isNewerState(current, incoming, incomingInstanceId, authoritative = false) {
     if (!incoming) return false;
     if (!current) return true;
     if (incomingInstanceId && current.instanceId && incomingInstanceId !== current.instanceId) {
-      return incomingInstanceId === incomingInstanceId;
+      return authoritative;
     }
-    return Number(incoming.version || 0) >= Number(current.version || 0);
+    return Number(incoming.version ?? 0) >= Number(current.version ?? 0);
+  }
+
+  function applyStateSnapshot(room, view, state, instanceId, authoritative = false, receivedAt = Date.now()) {
+    if (!isNewerState(view, state, instanceId, authoritative)) return null;
+    const resolvedInstance = instanceId || view?.instanceId || room.instance_id || null;
+    return {
+      room: { ...room, instance_id: resolvedInstance, state, state_stale: false },
+      view: { instanceId: resolvedInstance, version: Number(state.version ?? 0), state, receivedAt }
+    };
   }
 
   function escapeHtml(value) {
@@ -156,7 +167,7 @@
     });
   }
 
-  const appExports = { formatDuration, makeRequestId, statePosition, isNewerState, escapeHtml, MockApi, ApiClient };
+  const appExports = { formatDuration, makeRequestId, statePosition, isNewerState, applyStateSnapshot, escapeHtml, MockApi, ApiClient };
   if (typeof module !== "undefined" && module.exports) module.exports = appExports;
 
   function startApp() {
@@ -198,17 +209,22 @@
     function trackById(id) { return tracks.find((track) => track.id === id) || null; }
     function queueTracks(queue) { return queue.map((item) => ({ item, track: trackById(item.track_id) })); }
 
-    function updateRoomView(room) {
-      if (!room) return;
-      const old = roomView.get(room.id);
-      if (room.state) {
-        const view = { instanceId: room.instance_id || old?.instanceId || null, version: room.state.version || 0, state: room.state, receivedAt: old?.instanceId === room.instance_id ? (old.receivedAt || Date.now()) : Date.now(), instanceChanged: old?.instanceChanged || false };
-        roomView.set(room.id, view);
-      }
+    function updateRoomView(room, authoritative = true) {
+      if (!room?.state) return true;
+      const current = roomView.get(room.id);
+      const result = applyStateSnapshot(room, current, room.state, room.instance_id, authoritative);
+      if (!result) return false;
+      roomView.set(room.id, result.view);
+      return true;
     }
 
     function mergeRoomSummary(room) {
+      if (!room?.id) return;
       const existing = rooms.find((entry) => entry.id === room.id);
+      if (room.state && !isNewerState(roomView.get(room.id), room.state, room.instance_id, true)) {
+        // Stale REST responses must not roll back a more recent observed revision.
+        return;
+      }
       if (existing) Object.assign(existing, room);
       else rooms.push(room);
       updateRoomView(room);
@@ -365,9 +381,11 @@
       dom.connectionBadge.textContent = "Refreshing";
       try {
         const [roomResponse, trackResponse] = await Promise.all([api.rooms(), api.tracks()]);
-        rooms = roomResponse.rooms || [];
+        const received = roomResponse.rooms || [];
+        const seen = new Set(received.map((room) => room.id));
+        rooms = rooms.filter((room) => seen.has(room.id));
+        received.forEach(mergeRoomSummary);
         tracks = trackResponse.tracks || [];
-        rooms.forEach(updateRoomView);
         if (!selectedRoomId || !rooms.some((room) => room.id === selectedRoomId)) {
           selectedRoomId = rooms.find((room) => room.availability === "online")?.id || rooms[0]?.id || null;
         }
@@ -406,15 +424,15 @@
       }
     }
 
-    async function runMutation(key, operation, successMessage) {
-      if (pending.has(key)) return;
+    async function runMutation(key, roomId, operation, successMessage) {
+      if (pending.size > 0) return;
       pending.add(key);
       setControlsDisabled(true);
       try {
         const result = await operation();
         if (result?.state) {
-          const room = currentRoom();
-          if (room) {
+          const room = rooms.find((entry) => entry.id === roomId);
+          if (room && isNewerState(roomView.get(roomId), result.state, room.instance_id)) {
             room.state = result.state;
             room.state_stale = false;
             updateRoomView(room);
@@ -450,7 +468,7 @@
       const room = requireRoom();
       if (!room) return;
       const requestId = makeRequestId();
-      runMutation(`command:${room.id}:${requestId}`, () => api.command(room.id, { request_id: requestId, type, payload }, requestId));
+      runMutation(`command:${room.id}:${requestId}`, room.id, () => api.command(room.id, { request_id: requestId, type, payload }, requestId));
     }
 
     function playTrack(trackId) {
@@ -461,14 +479,14 @@
       const room = requireRoom();
       if (!room) return;
       const requestId = makeRequestId();
-      runMutation(`queue-add:${room.id}:${requestId}`, () => api.queueAdd(room.id, { track_id: trackId }, requestId), "Added to queue.");
+      runMutation(`queue-add:${room.id}:${requestId}`, room.id, () => api.queueAdd(room.id, { track_id: trackId }, requestId), "Added to queue.");
     }
 
     function removeQueueItem(itemId) {
       const room = requireRoom();
       if (!room) return;
       const requestId = makeRequestId();
-      runMutation(`queue-remove:${room.id}:${requestId}`, () => api.queueRemove(room.id, itemId, requestId), "Queue item removed.");
+      runMutation(`queue-remove:${room.id}:${requestId}`, room.id, () => api.queueRemove(room.id, itemId, requestId), "Queue item removed.");
     }
 
     function handlePrimaryControl() {
@@ -493,7 +511,7 @@
       const room = requireRoom();
       if (!room) return;
       const requestId = makeRequestId();
-      runMutation(`queue-clear:${room.id}:${requestId}`, () => api.queueClear(room.id, requestId), "Queue cleared.");
+      runMutation(`queue-clear:${room.id}:${requestId}`, room.id, () => api.queueClear(room.id, requestId), "Queue cleared.");
     });
     dom.refreshRooms.addEventListener("click", loadInitialSnapshots);
 
@@ -521,15 +539,15 @@
         if (!room) return;
         const view = roomView.get(room.id);
         if (payload.instance_id && view?.instanceId && payload.instance_id !== view.instanceId) {
-          if (view.instanceChanged) return;
-          room.instance_id = payload.instance_id;
-          view.instanceChanged = true;
+          // Do not adopt an unexpected instance from an untrusted/late SSE event.
+          // Reconcile the active instance with REST first.
+          loadInitialSnapshots();
+          return;
         }
-        if (view?.instanceId === payload.instance_id && Number(payload.state?.version || 0) < Number(view.version || 0)) return;
-        room.instance_id = payload.instance_id;
-        room.state = payload.state;
-        room.state_stale = false;
-        updateRoomView(room);
+        const resolved = applyStateSnapshot(room, view, payload.state, payload.instance_id);
+        if (!resolved) return;
+        Object.assign(room, resolved.room);
+        roomView.set(room.id, resolved.view);
         renderRooms();
         renderPlayer();
         bindQueueRemoveButtons();
