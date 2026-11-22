@@ -66,5 +66,5 @@ test("frontend ApiClient performs real HTTP requests with stable IDs and structu
   // A 504 must not trigger an automatic retry: only one network request with this ID exists.
   assert.equal(calls.filter((call) => call.body.includes("req-next")).length, 1);
   assert.equal(calls.find((call) => call.body.includes("req-play")).headers["x-request-id"], "req-play");
-  assert.equal(calls.find((call) => call.body.includes("req-queue")).headers["x-request-id"], "req-queue");
+  assert.equal(calls.find((call) => call.method === "POST" && call.url === "/api/v1/rooms/bedroom/queue").headers["x-request-id"], "req-queue");
 });
