@@ -25,3 +25,16 @@ jobs:
         run: go vet ./...
       - name: Build services
         run: go build ./cmd/...
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript syntax
+        run: node --check web/app.js
+      - name: Frontend unit and API contract tests
+        run: node --test web/app.test.js
