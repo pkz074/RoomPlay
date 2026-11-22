@@ -2,7 +2,7 @@
 
 A distributed multi-room music player built with Go, featuring independent playback nodes, centralized coordination, and fault-tolerant communication.
 
-> **Status:** Initial project scaffold. The binaries currently exit with a not-implemented message; NATS connections, REST endpoints, SSE, music playback and real library serving are assigned to feature owners and are **not yet functional**.
+> **Status:** The music library serves catalog metadata and allowlisted MP3s. Coordinator, player and frontend integration remain scaffold work; NATS connections, coordinator REST/SSE and room playback are **not yet functional**.
 
 ## Architecture
 

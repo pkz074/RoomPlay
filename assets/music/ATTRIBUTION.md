@@ -19,10 +19,10 @@ A filename or "no copyright" description alone is insufficient proof.
 - **Artist:** Eternity Arcade
 - **Title:** Lost in a Dream
 - **Source:** https://commons.wikimedia.org/wiki/File:Eternity_Arcade_-_Lost_in_a_Dream_(vocal_retro_pop_music_made_with_AI).opus
-- **License:** [Creative Commons Attribution 4.0 International](https://creativecommons.org/licenses/by/4.0/)
+- **License as listed on Commons:** [Creative Commons Attribution 4.0 International](https://creativecommons.org/licenses/by/4.0/)
 - **Attribution:** "Lost in a Dream" by Eternity Arcade. Audio extracted from the creator's video and transcoded to OPUS/MP3 via Wikimedia Commons; licensed as CC BY 4.0 on the Commons file page. Source and license links above. No endorsement implied.
 - **Asset:** `Eternity_Arcade_-_Lost_in_a_Dream_(vocal_retro_pop_music_made_with_AI).mp3`
-- **Modification:** Wikimedia MP3 derivative of the source OPUS file
+- **Reported modification:** Wikimedia MP3 derivative of the source OPUS file
 
 ### Evidence checked on 2026-11-22
 
@@ -42,5 +42,10 @@ Bundled MP3 SHA-256 (identifies the reviewed repository asset):
 `0fb15c502297c8caf58688cac13247b7ae2139a29236380d17bba76d2e261d36`.
 
 The MP3 was supplied by Colton's feature commit, not downloaded or re-encoded
-during this review. Confirm the exact asset's provenance and the original
-license/version before treating this record as completed license verification.
+during this review. RoomPlay relies on the file-specific CC BY 4.0 statement
+on Commons as its redistribution basis, with the attribution and conversion
+notice above retained. This is separate from the general creator quotation;
+AI generation or use for a course project is not the permission basis. The
+pending Commons review and lack of an independent transcode byte comparison
+remain disclosed provenance limitations, rather than claims of completed
+external verification.
