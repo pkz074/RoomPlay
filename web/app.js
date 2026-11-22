@@ -301,7 +301,7 @@
 
       dom.primaryButton.textContent = state.status === "playing" ? "Ⅱ" : "▶";
       dom.primaryButton.setAttribute("aria-label", state.status === "paused" ? "Resume playback" : state.status === "playing" ? "Pause playback" : "Play selected track");
-      dom.primaryButton.disabled = offline || stale;
+      dom.primaryButton.disabled = offline || stale || pending.size > 0;
 
       const history = state.history || [];
       dom.historyList.innerHTML = history.length ? history.slice().reverse().map((item, index) => {
