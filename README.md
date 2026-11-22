@@ -2,7 +2,7 @@
 
 A distributed multi-room music player built with Go, featuring independent playback nodes, centralized coordination, and fault-tolerant communication.
 
-> **Status:** Initial project scaffold. The binaries currently exit with a not-implemented message; NATS connections, REST endpoints, SSE, music playback and real library serving are assigned to feature owners and are **not yet functional**.
+> **Status:** The music library serves catalog metadata and allowlisted MP3s. Coordinator, player and frontend integration remain scaffold work; NATS connections, coordinator REST/SSE and room playback are **not yet functional**.
 
 ## Architecture
 
@@ -24,7 +24,7 @@ Core NATS carries command request/reply and state/heartbeat events; it never tra
 
 ## Development requirements
 
-Go 1.23+ (see `go.mod`), Git, and a local NATS server for integration once services are implemented. Go package tests currently need no NATS broker.
+Go 1.25+ (see `go.mod`), Git, and a local NATS server for integration once services are implemented. Go package tests currently need no NATS broker. The library uses `os.Root` for traversal-resistant audio access.
 
 ```sh
 go test ./...
@@ -36,6 +36,24 @@ go build ./cmd/...
 Environment variable examples: [`.env.example`](.env.example). Copy its values into your terminal environment when running services; **no automatic .env loader is provided**.
 
 Once implemented, run a NATS server, start the library and coordinator, then start multiple player processes with distinct `ROOM_ID` values. See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for the planned environment and startup sequence.
+
+### Music library
+
+Run `go run ./cmd/library` from the repository root. It serves `GET /tracks` and
+`GET`/`HEAD /audio/{filename}` using `assets/music/catalog.json` and `assets/music/`.
+Override `LIBRARY_ADDR`, `LIBRARY_CATALOG`, and `LIBRARY_AUDIO_ROOT` as needed.
+Set `LIBRARY_URL` to an HTTP(S) origin reachable by players, for example
+`http://192.0.2.10:8090`. Credentials, query strings, fragments and path prefixes
+are rejected. The loopback default is only for a same-machine demonstration.
+
+Catalogs must contain one JSON object with a `tracks` array (`[]` is valid) and
+be at most 1 MiB. Filenames must be portable, single-component MP3 names;
+URLs escape spaces, Unicode and URL punctuation. Only catalog-listed files
+are served, and symlinks may resolve only within the opened audio directory.
+Keep that directory under trusted administrative control: directory confinement
+does not establish music licensing, validate MP3 encoding, or prevent privileged
+mount changes/hard links. See [audio attribution](assets/music/ATTRIBUTION.md)
+for the demo track's evidence and remaining verification limits.
 
 ## Collaboration
 

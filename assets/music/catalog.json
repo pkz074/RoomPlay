@@ -1,0 +1,15 @@
+{
+  "tracks": [
+    {
+      "id": "track-001",
+      "title": "Lost in a Dream",
+      "artist": "Eternity Arcade",
+      "duration_ms": 220000,
+      "audio_file": "Eternity_Arcade_-_Lost_in_a_Dream_(vocal_retro_pop_music_made_with_AI).mp3",
+      "source": "https://commons.wikimedia.org/wiki/File:Eternity_Arcade_-_Lost_in_a_Dream_(vocal_retro_pop_music_made_with_AI).opus",
+      "license": "Creative Commons Attribution 4.0 International",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "attribution": "Lost in a Dream by Eternity Arcade (https://www.youtube.com/watch?v=uUWWPk69JWs). Audio extracted and transcoded to OPUS/MP3 via Wikimedia Commons; CC BY 4.0 per Commons: https://creativecommons.org/licenses/by/4.0/. See ATTRIBUTION.md for source, changes and pending verification details. No endorsement implied."
+    }
+  ]
+}
