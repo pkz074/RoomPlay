@@ -37,4 +37,4 @@ jobs:
       - name: Check JavaScript syntax
         run: node --check web/app.js
       - name: Frontend unit and API contract tests
-        run: node --test web/app.test.js
+        run: node --test web/app.test.js tests/integration/frontend_http.test.js
