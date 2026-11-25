@@ -5,7 +5,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"io"
+	"log"
 	"sync"
 
 	"github.com/pkz074/RoomPlay/internal/protocol"
@@ -15,15 +17,16 @@ const defaultCommandCacheSize = 1000
 
 // CommandProcessor serializes validation, deduplication, state mutation, and backend coordination.
 type CommandProcessor struct {
-	mu            sync.Mutex
-	state         *StateMachine
-	tracks        TrackIndex
-	backend       PlaybackBackend
-	cache         map[string]cachedCommand
-	cacheOrder    []string
-	cacheCursor   int
-	onStateChange func(protocol.PlaybackState)
-	closed         bool
+	mu                  sync.Mutex
+	state               *StateMachine
+	tracks              TrackIndex
+	backend             PlaybackBackend
+	cache               map[string]cachedCommand
+	cacheOrder          []string
+	cacheCursor         int
+	onStateChange       func(protocol.PlaybackState)
+	playbackGeneration uint64
+	closed              bool
 }
 
 type cachedCommand struct {
@@ -53,7 +56,7 @@ func NewCommandProcessor(tracks TrackIndex, backend PlaybackBackend) *CommandPro
 		cacheOrder:  make([]string, 0, defaultCommandCacheSize),
 	}
 	if completionSource, ok := backend.(interface{ SetOnCompletion(func()) }); ok {
-		completionSource.SetOnCompletion(processor.completeNaturally)
+		completionSource.SetOnCompletion(func() { processor.completeNaturally(0, "") })
 	}
 	return processor
 }
@@ -128,6 +131,10 @@ func (p *CommandProcessor) Process(ctx context.Context, request protocol.Command
 		return cloneResponse(response)
 	}
 	after := p.state.Snapshot()
+	if state.Version != before.Version && playbackCommandChanged(request.Type) {
+		p.playbackGeneration++
+	}
+	p.updateCompletionCallback(after)
 	p.syncBackend(request.Type, before, after)
 	state = p.snapshotLocked()
 	response := protocol.CommandResponse{
@@ -203,7 +210,7 @@ func (p *CommandProcessor) preparedTargetID(request protocol.CommandRequest, bef
 		if len(before.History) > 0 {
 			return before.History[len(before.History)-1].TrackID
 		}
-		if before.Current != nil {
+		if before.Current != nil && (before.Status != protocol.StatusPlaying || before.PositionMs > 0) {
 			return before.Current.TrackID
 		}
 	}
@@ -247,24 +254,72 @@ func (p *CommandProcessor) snapshotLocked() protocol.PlaybackState {
 	return state
 }
 
-func (p *CommandProcessor) completeNaturally() {
+func (p *CommandProcessor) completeNaturally(expectedGeneration uint64, expectedItemID string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.closed {
 		return
 	}
 	before := p.snapshotLocked()
-	if before.Status != protocol.StatusPlaying || before.Current == nil {
+	if before.Status != protocol.StatusPlaying || before.Current == nil ||
+		p.playbackGeneration != expectedGeneration || before.Current.ID != expectedItemID {
 		return
+	}
+	var prepareErr error
+	if len(before.Queue) > 0 {
+		track, exists := p.tracks[before.Queue[0].TrackID]
+		if !exists {
+			prepareErr = fmt.Errorf("queued track %q is no longer available", before.Queue[0].TrackID)
+		} else {
+			prepareCtx, cancel := context.WithTimeout(context.Background(), audioPrepareTimeout)
+			prepareErr = p.backend.Prepare(prepareCtx, track)
+			cancel()
+		}
 	}
 	state, apiErr := p.state.Next()
 	if apiErr != nil || state.Version == before.Version {
 		return
 	}
-	p.syncBackend(protocol.PlaybackNext, before, state)
+	p.playbackGeneration++
+	if prepareErr != nil && state.Status == protocol.StatusPlaying {
+		p.backend.Stop()
+		state, apiErr = p.state.Stop()
+		if apiErr != nil {
+			return
+		}
+		p.updateCompletionCallback(state)
+		log.Printf("natural playback advance stopped after audio preparation failed: %v", prepareErr)
+	} else {
+		p.updateCompletionCallback(state)
+		p.syncBackend(protocol.PlaybackNext, before, state)
+	}
 	state = p.snapshotLocked()
 	if p.onStateChange != nil {
 		p.onStateChange(cloneState(state))
+	}
+}
+
+func (p *CommandProcessor) updateCompletionCallback(state protocol.PlaybackState) {
+	completionSource, ok := p.backend.(interface{ SetOnCompletion(func()) })
+	if !ok {
+		return
+	}
+	if state.Status != protocol.StatusPlaying || state.Current == nil {
+		completionSource.SetOnCompletion(nil)
+		return
+	}
+	generation := p.playbackGeneration
+	itemID := state.Current.ID
+	completionSource.SetOnCompletion(func() { p.completeNaturally(generation, itemID) })
+}
+
+func playbackCommandChanged(command protocol.CommandType) bool {
+	switch command {
+	case protocol.PlaybackPlay, protocol.PlaybackPause, protocol.PlaybackResume, protocol.PlaybackStop,
+		protocol.PlaybackNext, protocol.PlaybackPrevious:
+		return true
+	default:
+		return false
 	}
 }
 

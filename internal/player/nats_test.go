@@ -3,6 +3,7 @@ package player
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -98,6 +99,37 @@ func TestNATSPlayerReconnectEpochFencesOldRegistration(t *testing.T) {
 	epoch.Add(1)
 	if _, registered, _ := client.registration(); registered {
 		t.Fatal("old registration remained active after broker reconnect")
+	}
+}
+
+func TestLocalPlaybackContinuesWhenCoordinatorRegistrationIsLost(t *testing.T) {
+	clock := newFakePlaybackClock()
+	processor := NewCommandProcessor(testTrackIndex(), newSimulationBackend(clock))
+	registration, _ := json.Marshal(protocol.RegistrationResponse{
+		Success: true, RoomID: "bedroom", RegistrationToken: "lease-1",
+	})
+	client, err := NewNATSPlayer(&fakePlayerNATS{registrationReply: registration}, processor, NATSPlayerConfig{
+		RoomID: "bedroom", Name: "Bedroom", InstanceID: "instance-1", Logf: func(string, ...any) {},
+	})
+	if err != nil {
+		t.Fatalf("NewNATSPlayer: %v", err)
+	}
+	client.register(context.Background())
+	processor.SetOnStateChange(client.publishState)
+	for _, request := range []protocol.CommandRequest{
+		commandRequest("play-a", protocol.PlaybackPlay, `{"track_id":"a"}`),
+		commandRequest("queue-b", protocol.QueueAdd, `{"track_id":"b"}`),
+	} {
+		if response := processor.Process(context.Background(), request); !response.Success {
+			t.Fatalf("%s response = %+v", request.Type, response)
+		}
+	}
+	client.registrationFailed(protocol.ErrServiceUnavailable, "heartbeat", errors.New("coordinator unavailable"))
+	clock.Advance(time.Second)
+	state := processor.Snapshot()
+	if state.Status != protocol.StatusPlaying || state.Current == nil || state.Current.TrackID != "b" ||
+		len(state.History) != 1 || state.History[0].TrackID != "a" || state.Version != 3 {
+		t.Fatalf("local playback did not continue after registration loss: %+v", state)
 	}
 }
 

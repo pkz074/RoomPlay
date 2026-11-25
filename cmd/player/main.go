@@ -35,8 +35,8 @@ func run() error {
 	natsURL := envOrDefault("NATS_URL", "nats://127.0.0.1:4222")
 	libraryURL := envOrDefault("LIBRARY_URL", "http://127.0.0.1:8090")
 	mode := strings.ToLower(strings.TrimSpace(envOrDefault("PLAYER_MODE", "simulation")))
-	if mode != "simulation" {
-		return fmt.Errorf("unsupported PLAYER_MODE %q; only simulation is currently available", mode)
+	if mode != "simulation" && mode != "audio" {
+		return fmt.Errorf("unsupported PLAYER_MODE %q; use simulation or audio", mode)
 	}
 
 	loadCtx, cancelLoad := context.WithTimeout(context.Background(), 6*time.Second)
@@ -45,7 +45,16 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("load player track catalog: %w", err)
 	}
-	processor := player.NewCommandProcessor(tracks, player.NewSimulationBackend())
+	var backend player.PlaybackBackend = player.NewSimulationBackend()
+	if mode == "audio" {
+		audioCtx, cancelAudio := context.WithTimeout(context.Background(), 10*time.Second)
+		backend, err = player.NewAudioBackend(audioCtx, &http.Client{Timeout: 15 * time.Second})
+		cancelAudio()
+		if err != nil {
+			return fmt.Errorf("initialize audio backend: %w", err)
+		}
+	}
+	processor := player.NewCommandProcessor(tracks, backend)
 	defer processor.Close()
 	instanceID, err := newInstanceID()
 	if err != nil {

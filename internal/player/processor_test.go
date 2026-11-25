@@ -205,6 +205,59 @@ func TestCommandProcessorPreviousThenNextRestoresDisplacedTrack(t *testing.T) {
 	}
 }
 
+func TestCommandProcessorIgnoresCompletionFromSupersededTrack(t *testing.T) {
+	clock := newFakePlaybackClock()
+	backend := newSimulationBackend(clock)
+	processor := NewCommandProcessor(testTrackIndex(), backend)
+	if response := processor.Process(context.Background(), commandRequest("play-a", protocol.PlaybackPlay, `{"track_id":"a"}`)); !response.Success {
+		t.Fatalf("play a response = %+v", response)
+	}
+	staleCompletion := backend.onComplete
+	if response := processor.Process(context.Background(), commandRequest("play-b", protocol.PlaybackPlay, `{"track_id":"b"}`)); !response.Success {
+		t.Fatalf("play b response = %+v", response)
+	}
+	staleCompletion()
+	state := processor.Snapshot()
+	if state.Status != protocol.StatusPlaying || state.Current == nil || state.Current.TrackID != "b" || state.Version != 2 {
+		t.Fatalf("stale completion changed the new playback: %+v", state)
+	}
+}
+
+func TestCommandProcessorStopsCleanlyWhenNaturalAdvanceCannotPrepareAudio(t *testing.T) {
+	clock := newFakePlaybackClock()
+	backend := &failingPrepareBackend{SimulationBackend: newSimulationBackend(clock)}
+	processor := NewCommandProcessor(testTrackIndex(), backend)
+	for _, request := range []protocol.CommandRequest{
+		commandRequest("play-a", protocol.PlaybackPlay, `{"track_id":"a"}`),
+		commandRequest("queue-b", protocol.QueueAdd, `{"track_id":"b"}`),
+	} {
+		if response := processor.Process(context.Background(), request); !response.Success {
+			t.Fatalf("%s response = %+v", request.Type, response)
+		}
+	}
+	backend.fail = true
+	clock.Advance(time.Second)
+	state := processor.Snapshot()
+	if state.Status != protocol.StatusStopped || state.Current == nil || state.Current.TrackID != "b" ||
+		len(state.History) != 1 || state.History[0].TrackID != "a" || len(state.Queue) != 0 || state.Version != 4 {
+		t.Fatalf("failed natural preparation left inconsistent playback: %+v", state)
+	}
+}
+
+func TestCommandProcessorDoesNotPrepareNoOpPreviousAtTrackStart(t *testing.T) {
+	clock := newFakePlaybackClock()
+	backend := &failingPrepareBackend{SimulationBackend: newSimulationBackend(clock)}
+	processor := NewCommandProcessor(testTrackIndex(), backend)
+	if response := processor.Process(context.Background(), commandRequest("play-a", protocol.PlaybackPlay, `{"track_id":"a"}`)); !response.Success {
+		t.Fatalf("play response = %+v", response)
+	}
+	backend.fail = true
+	response := processor.Process(context.Background(), commandRequest("previous", protocol.PlaybackPrevious, `{}`))
+	if !response.Success || response.State == nil || response.State.Version != 1 || response.State.Current == nil || response.State.Current.TrackID != "a" {
+		t.Fatalf("no-op previous unexpectedly prepared/restarted audio: %+v", response)
+	}
+}
+
 func newProcessorWithClock(t *testing.T, clock *fakePlaybackClock) *CommandProcessor {
 	t.Helper()
 	return NewCommandProcessor(testTrackIndex(), newSimulationBackend(clock))
