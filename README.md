@@ -2,12 +2,12 @@
 
 A distributed multi-room music player built with Go, featuring independent playback nodes, centralized coordination, and fault-tolerant communication.
 
-> **Status:** The music library serves catalog metadata and allowlisted MP3s. Coordinator, player and frontend integration remain scaffold work; NATS connections, coordinator REST/SSE and room playback are **not yet functional**.
+> **Status:** The library serves catalog metadata and allowlisted MP3s. The player now supports simulation playback, serialized commands, request deduplication, and NATS registration/state events. The coordinator REST/SSE service remains scaffold work, so the complete browser-to-room demo is not yet runnable.
 
 ## Architecture
 
 - **Coordinator:** Go HTTP REST + SSE frontend gateway, NATS routing and room registry (Najin)
-- **Players:** independent Go processes, authoritative playback state, queue/history, simulation/MP3 engine (Kyle)
+- **Players:** independent Go processes with authoritative state, queue/history, and simulation backend (Kyle)
 - **Music library:** Go HTTP track catalog and reusable MP3 delivery (Colton)
 - **Frontend:** HTML/CSS/JavaScript controller using REST + SSE (Kaira)
 - **Integration and protocols:** common wire models, CI, integration and failure tests (João)
@@ -35,7 +35,9 @@ go build ./cmd/...
 
 Environment variable examples: [`.env.example`](.env.example). Copy its values into your terminal environment when running services; **no automatic .env loader is provided**.
 
-Once implemented, run a NATS server, start the library and coordinator, then start multiple player processes with distinct `ROOM_ID` values. See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for the planned environment and startup sequence.
+The player needs a running library and Core NATS broker. Set `ROOM_ID` and optionally `ROOM_NAME`, `NATS_URL`, `LIBRARY_URL`, and `PLAYER_MODE=simulation`, then run `go run ./cmd/player`. It installs its room subscriptions before registration, keeps simulation playback local if the broker disconnects, and retries registration after recovery. The coordinator is still scaffold work, so without a coordinator the player remains unregistered and rejects room commands. See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for the planned multi-process startup sequence.
+
+The current playback backend is simulation-only. `PLAYER_MODE=audio` returns an explicit unsupported-mode error until the optional hardware/audio integration pass is implemented.
 
 ### Music library
 

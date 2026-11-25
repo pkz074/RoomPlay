@@ -34,6 +34,14 @@ func (m *StateMachine) Snapshot() protocol.PlaybackState {
 	return cloneState(m.state)
 }
 
+func (m *StateMachine) setPositionMs(positionMs int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if positionMs >= 0 && m.state.Current != nil && m.state.Status != protocol.StatusStopped {
+		m.state.PositionMs = positionMs
+	}
+}
+
 // Play selects a new occurrence, retaining the upcoming queue and moving the prior current item to history.
 func (m *StateMachine) Play(trackID string) (protocol.PlaybackState, *protocol.APIError) {
 	m.mu.Lock()
