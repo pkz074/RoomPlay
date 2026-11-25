@@ -52,15 +52,19 @@ type Change struct {
 
 // Registry is a concurrency-safe in-memory list of rooms.
 type Registry struct {
-	mu       sync.Mutex
-	clock    Clock
-	timeout  time.Duration
-	rooms    map[string]*Room
-	onChange func(Change)
+	mu             sync.Mutex
+	clock          Clock
+	timeout        time.Duration
+	rooms          map[string]*Room
+	onChange       func(Change)
+	pendingChanges []Change
+	notifying      bool
 }
 
 // NewRegistry creates a registry. onChange may be nil. It is called AFTER the
 // internal lock is released, so it may safely call back into the registry.
+// Notifications preserve mutation order. Mutations during a callback enqueue
+// their notifications for the active caller to drain after that callback returns.
 func NewRegistry(clock Clock, onChange func(Change)) *Registry {
 	if clock == nil {
 		clock = SystemClock{}
@@ -89,12 +93,34 @@ func regFailure(roomID string, code protocol.ErrorCode, msg string) protocol.Reg
 	}
 }
 
-func (r *Registry) notify(changes []Change) {
-	if r.onChange == nil {
-		return
+// queueChangesLocked records transitions before releasing the mutation lock.
+// Exactly one caller owns delivery; callbacks may reenter registry mutations.
+func (r *Registry) queueChangesLocked(changes []Change) bool {
+	if r.onChange == nil || len(changes) == 0 {
+		return false
 	}
-	for _, c := range changes {
-		r.onChange(c)
+	r.pendingChanges = append(r.pendingChanges, changes...)
+	if r.notifying {
+		return false
+	}
+	r.notifying = true
+	return true
+}
+
+func (r *Registry) notify() {
+	for {
+		r.mu.Lock()
+		changes := r.pendingChanges
+		r.pendingChanges = nil
+		if len(changes) == 0 {
+			r.notifying = false
+			r.mu.Unlock()
+			return
+		}
+		r.mu.Unlock()
+		for _, change := range changes {
+			r.onChange(change)
+		}
 	}
 }
 
@@ -170,9 +196,11 @@ func (r *Registry) Register(req protocol.RegistrationRequest) protocol.Registrat
 		changes = append(changes, Change{RoomID: room.ID, Availability: protocol.RoomOnline})
 		resp = okResponse(room)
 	}
+	deliver := r.queueChangesLocked(changes)
 	r.mu.Unlock()
-
-	r.notify(changes)
+	if deliver {
+		r.notify()
+	}
 	return resp
 }
 
@@ -204,9 +232,11 @@ func (r *Registry) Heartbeat(hb protocol.Heartbeat) error {
 	default:
 		room.LastHeartbeat = r.clock.Now()
 	}
+	deliver := r.queueChangesLocked(changes)
 	r.mu.Unlock()
-
-	r.notify(changes)
+	if deliver {
+		r.notify()
+	}
 	return err
 }
 
@@ -214,8 +244,11 @@ func (r *Registry) Heartbeat(hb protocol.Heartbeat) error {
 func (r *Registry) Sweep() {
 	r.mu.Lock()
 	changes := r.expireLocked()
+	deliver := r.queueChangesLocked(changes)
 	r.mu.Unlock()
-	r.notify(changes)
+	if deliver {
+		r.notify()
+	}
 }
 
 // Get returns a copy of a room.

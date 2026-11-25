@@ -235,7 +235,7 @@ func (b *AudioBackend) Play(track protocol.Track, positionMs int64) {
 	b.baseMs = offset * 1000 / (audioOutputSampleRate * audioBytesPerFrame)
 	b.playing = true
 	candidate.player.Play()
-	b.scheduleCompletionLocked()
+	b.scheduleCompletionLocked(b.onComplete)
 	b.mu.Unlock()
 }
 
@@ -264,7 +264,7 @@ func (b *AudioBackend) Resume() {
 	}
 	b.playing = true
 	b.current.player.Play()
-	b.scheduleCompletionLocked()
+	b.scheduleCompletionLocked(b.onComplete)
 }
 
 func (b *AudioBackend) Stop() {
@@ -336,7 +336,7 @@ func (b *AudioBackend) positionLocked() int64 {
 	return position
 }
 
-func (b *AudioBackend) scheduleCompletionLocked() {
+func (b *AudioBackend) scheduleCompletionLocked(callback func()) {
 	if b.closed || !b.playing || b.current == nil {
 		return
 	}
@@ -350,10 +350,11 @@ func (b *AudioBackend) scheduleCompletionLocked() {
 		delay = time.Millisecond
 	}
 	generation := b.generation
-	b.timer = b.clock.AfterFunc(delay, func() { b.complete(generation) })
+	// Preserve the playback identity through early timer firings and drain polls.
+	b.timer = b.clock.AfterFunc(delay, func() { b.complete(generation, callback) })
 }
 
-func (b *AudioBackend) complete(generation uint64) {
+func (b *AudioBackend) complete(generation uint64, callback func()) {
 	b.mu.Lock()
 	if b.closed || !b.playing || b.current == nil || generation != b.generation {
 		b.mu.Unlock()
@@ -362,7 +363,7 @@ func (b *AudioBackend) complete(generation uint64) {
 	b.timer = nil
 	player := b.current.player
 	if player.Err() == nil && b.positionLocked() < b.current.durationMs {
-		b.scheduleCompletionLocked()
+		b.scheduleCompletionLocked(callback)
 		b.mu.Unlock()
 		return
 	}
@@ -377,11 +378,10 @@ func (b *AudioBackend) complete(generation uint64) {
 				delay = audioMaximumDrainDelay
 			}
 		}
-		b.timer = b.clock.AfterFunc(delay, func() { b.complete(generation) })
+		b.timer = b.clock.AfterFunc(delay, func() { b.complete(generation, callback) })
 		b.mu.Unlock()
 		return
 	}
-	callback := b.onComplete
 	b.playing = false
 	b.baseMs = b.current.durationMs
 	b.cancelTimerLocked()
