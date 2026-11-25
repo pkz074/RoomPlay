@@ -2,12 +2,12 @@
 
 A distributed multi-room music player built with Go, featuring independent playback nodes, centralized coordination, and fault-tolerant communication.
 
-> **Status:** The music library serves catalog metadata and allowlisted MP3s. Coordinator, player and frontend integration remain scaffold work; NATS connections, coordinator REST/SSE and room playback are **not yet functional**.
+> **Status:** The library serves catalog metadata and allowlisted MP3s. The player supports simulation and real MP3 playback, serialized commands, request deduplication, and NATS registration/state events. The coordinator REST/SSE service remains scaffold work, so the complete browser-to-room demo is not yet runnable.
 
 ## Architecture
 
 - **Coordinator:** Go HTTP REST + SSE frontend gateway, NATS routing and room registry (Najin)
-- **Players:** independent Go processes, authoritative playback state, queue/history, simulation/MP3 engine (Kyle)
+- **Players:** independent Go processes with authoritative state, queue/history, simulation, and optional audio output (Kyle)
 - **Music library:** Go HTTP track catalog and reusable MP3 delivery (Colton)
 - **Frontend:** HTML/CSS/JavaScript controller using REST + SSE (Kaira)
 - **Integration and protocols:** common wire models, CI, integration and failure tests (João)
@@ -24,7 +24,7 @@ Core NATS carries command request/reply and state/heartbeat events; it never tra
 
 ## Development requirements
 
-Go 1.25+ (see `go.mod`), Git, and a local NATS server for integration once services are implemented. Go package tests currently need no NATS broker. The library uses `os.Root` for traversal-resistant audio access.
+Go 1.26+ (see `go.mod`), Git, and a local NATS server for integration once services are implemented. Go package tests currently need no NATS broker. The library uses `os.Root` for traversal-resistant audio access.
 
 ```sh
 go test ./...
@@ -35,7 +35,9 @@ go build ./cmd/...
 
 Environment variable examples: [`.env.example`](.env.example). Copy its values into your terminal environment when running services; **no automatic .env loader is provided**.
 
-Once implemented, run a NATS server, start the library and coordinator, then start multiple player processes with distinct `ROOM_ID` values. See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for the planned environment and startup sequence.
+The player needs a running library and Core NATS broker. Set `ROOM_ID` and optionally `ROOM_NAME`, `NATS_URL`, `LIBRARY_URL`, and `PLAYER_MODE=simulation`, then run `go run ./cmd/player`. Use `PLAYER_MODE=audio` to decode library MP3s and play them through the machine's default audio device; this mode requires an available audio device and downloads each selected track from `LIBRARY_URL`. The player installs its room subscriptions before registration, keeps local playback running if the broker disconnects, and retries registration after recovery. The coordinator is still scaffold work, so without a coordinator the player remains unregistered and rejects room commands. See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for the planned multi-process startup sequence.
+
+Simulation mode needs no audio hardware and remains the recommended mode for tests and multi-room demonstrations.
 
 ### Music library
 
