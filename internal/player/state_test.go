@@ -11,10 +11,10 @@ import (
 
 func TestPlaybackTransitions(t *testing.T) {
 	tests := []struct {
-		name  string
-		setup func(*testing.T, *StateMachine)
+		name   string
+		setup  func(*testing.T, *StateMachine)
 		action func(*StateMachine) (protocol.PlaybackState, *protocol.APIError)
-		want  stateExpectation
+		want   stateExpectation
 	}{
 		{
 			name:   "play from stopped",
@@ -24,8 +24,8 @@ func TestPlaybackTransitions(t *testing.T) {
 		{
 			name: "play archives current and preserves upcoming",
 			setup: func(t *testing.T, m *StateMachine) {
-				applyOK(t, m.QueueAdd("b"))
-				applyOK(t, m.Play("a"))
+				applyOK(t)(m.QueueAdd("b"))
+				applyOK(t)(m.Play("a"))
 			},
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.Play("c") },
 			want:   stateExpectation{status: protocol.StatusPlaying, current: "c", history: []string{"a"}, queue: []string{"b"}, version: 3},
@@ -33,7 +33,7 @@ func TestPlaybackTransitions(t *testing.T) {
 		{
 			name: "pause",
 			setup: func(t *testing.T, m *StateMachine) {
-				applyOK(t, m.Play("a"))
+				applyOK(t)(m.Play("a"))
 			},
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.Pause() },
 			want:   stateExpectation{status: protocol.StatusPaused, current: "a", version: 2},
@@ -41,8 +41,8 @@ func TestPlaybackTransitions(t *testing.T) {
 		{
 			name: "resume",
 			setup: func(t *testing.T, m *StateMachine) {
-				applyOK(t, m.Play("a"))
-				applyOK(t, m.Pause())
+				applyOK(t)(m.Play("a"))
+				applyOK(t)(m.Pause())
 			},
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.Resume() },
 			want:   stateExpectation{status: protocol.StatusPlaying, current: "a", version: 3},
@@ -50,8 +50,8 @@ func TestPlaybackTransitions(t *testing.T) {
 		{
 			name: "stop retains current and queue",
 			setup: func(t *testing.T, m *StateMachine) {
-				applyOK(t, m.Play("a"))
-				applyOK(t, m.QueueAdd("b"))
+				applyOK(t)(m.Play("a"))
+				applyOK(t)(m.QueueAdd("b"))
 			},
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.Stop() },
 			want:   stateExpectation{status: protocol.StatusStopped, current: "a", queue: []string{"b"}, version: 3},
@@ -59,8 +59,8 @@ func TestPlaybackTransitions(t *testing.T) {
 		{
 			name: "next consumes upcoming and archives current",
 			setup: func(t *testing.T, m *StateMachine) {
-				applyOK(t, m.Play("a"))
-				applyOK(t, m.QueueAdd("b"))
+				applyOK(t)(m.Play("a"))
+				applyOK(t)(m.QueueAdd("b"))
 			},
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.Next() },
 			want:   stateExpectation{status: protocol.StatusPlaying, current: "b", history: []string{"a"}, version: 3},
@@ -68,8 +68,8 @@ func TestPlaybackTransitions(t *testing.T) {
 		{
 			name: "next with empty queue archives stopped current",
 			setup: func(t *testing.T, m *StateMachine) {
-				applyOK(t, m.Play("a"))
-				applyOK(t, m.Stop())
+				applyOK(t)(m.Play("a"))
+				applyOK(t)(m.Stop())
 			},
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.Next() },
 			want:   stateExpectation{status: protocol.StatusStopped, history: []string{"a"}, version: 3},
@@ -77,9 +77,9 @@ func TestPlaybackTransitions(t *testing.T) {
 		{
 			name: "previous restores history and queues displaced current first",
 			setup: func(t *testing.T, m *StateMachine) {
-				applyOK(t, m.Play("a"))
-				applyOK(t, m.Play("b"))
-				applyOK(t, m.QueueAdd("c"))
+				applyOK(t)(m.Play("a"))
+				applyOK(t)(m.Play("b"))
+				applyOK(t)(m.QueueAdd("c"))
 			},
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.Previous() },
 			want:   stateExpectation{status: protocol.StatusPlaying, current: "a", queue: []string{"b", "c"}, version: 4},
@@ -87,8 +87,8 @@ func TestPlaybackTransitions(t *testing.T) {
 		{
 			name: "previous restarts stopped current without history",
 			setup: func(t *testing.T, m *StateMachine) {
-				applyOK(t, m.Play("a"))
-				applyOK(t, m.Stop())
+				applyOK(t)(m.Play("a"))
+				applyOK(t)(m.Stop())
 				m.mu.Lock()
 				m.state.PositionMs = 1234 // Simulate playback progress before the stop/restart transition.
 				m.mu.Unlock()
@@ -97,16 +97,16 @@ func TestPlaybackTransitions(t *testing.T) {
 			want:   stateExpectation{status: protocol.StatusPlaying, current: "a", version: 3},
 		},
 		{
-			name: "previous with no current or history is a no-op",
+			name:   "previous with no current or history is a no-op",
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.Previous() },
 			want:   stateExpectation{status: protocol.StatusStopped, version: 0},
 		},
 		{
 			name: "next while paused starts next track",
 			setup: func(t *testing.T, m *StateMachine) {
-				applyOK(t, m.Play("a"))
-				applyOK(t, m.QueueAdd("b"))
-				applyOK(t, m.Pause())
+				applyOK(t)(m.Play("a"))
+				applyOK(t)(m.QueueAdd("b"))
+				applyOK(t)(m.Pause())
 			},
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.Next() },
 			want:   stateExpectation{status: protocol.StatusPlaying, current: "b", history: []string{"a"}, version: 4},
@@ -114,9 +114,9 @@ func TestPlaybackTransitions(t *testing.T) {
 		{
 			name: "previous while paused starts previous track",
 			setup: func(t *testing.T, m *StateMachine) {
-				applyOK(t, m.Play("a"))
-				applyOK(t, m.Play("b"))
-				applyOK(t, m.Pause())
+				applyOK(t)(m.Play("a"))
+				applyOK(t)(m.Play("b"))
+				applyOK(t)(m.Pause())
 			},
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.Previous() },
 			want:   stateExpectation{status: protocol.StatusPlaying, current: "a", queue: []string{"b"}, version: 4},
@@ -124,11 +124,11 @@ func TestPlaybackTransitions(t *testing.T) {
 		{
 			name: "previous then next returns to displaced track",
 			setup: func(t *testing.T, m *StateMachine) {
-				applyOK(t, m.Play("a"))
-				applyOK(t, m.Play("b"))
-				applyOK(t, m.QueueAdd("c"))
-				applyOK(t, m.Next())
-				applyOK(t, m.Previous())
+				applyOK(t)(m.Play("a"))
+				applyOK(t)(m.Play("b"))
+				applyOK(t)(m.QueueAdd("c"))
+				applyOK(t)(m.Next())
+				applyOK(t)(m.Previous())
 			},
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.Next() },
 			want:   stateExpectation{status: protocol.StatusPlaying, current: "c", history: []string{"a", "b"}, version: 6},
@@ -136,7 +136,7 @@ func TestPlaybackTransitions(t *testing.T) {
 		{
 			name: "duplicate track queue occurrences remain distinct",
 			setup: func(t *testing.T, m *StateMachine) {
-				applyOK(t, m.QueueAdd("a"))
+				applyOK(t)(m.QueueAdd("a"))
 			},
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.QueueAdd("a") },
 			want:   stateExpectation{status: protocol.StatusStopped, queue: []string{"a", "a"}, version: 2},
@@ -144,9 +144,9 @@ func TestPlaybackTransitions(t *testing.T) {
 		{
 			name: "queue remove removes only the requested occurrence",
 			setup: func(t *testing.T, m *StateMachine) {
-				state := applyOK(t, m.QueueAdd("a"))
-				applyOK(t, m.QueueAdd("a"))
-				applyOK(t, m.QueueRemove(state.Queue[0].ID))
+				state := applyOK(t)(m.QueueAdd("a"))
+				applyOK(t)(m.QueueAdd("a"))
+				applyOK(t)(m.QueueRemove(state.Queue[0].ID))
 			},
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.QueueAdd("b") },
 			want:   stateExpectation{status: protocol.StatusStopped, queue: []string{"a", "b"}, version: 4},
@@ -154,9 +154,9 @@ func TestPlaybackTransitions(t *testing.T) {
 		{
 			name: "queue clear leaves current and history untouched",
 			setup: func(t *testing.T, m *StateMachine) {
-				applyOK(t, m.Play("a"))
-				applyOK(t, m.Play("b"))
-				applyOK(t, m.QueueAdd("c"))
+				applyOK(t)(m.Play("a"))
+				applyOK(t)(m.Play("b"))
+				applyOK(t)(m.QueueAdd("c"))
 			},
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.QueueClear() },
 			want:   stateExpectation{status: protocol.StatusPlaying, current: "b", history: []string{"a"}, version: 4},
@@ -169,7 +169,7 @@ func TestPlaybackTransitions(t *testing.T) {
 			if tt.setup != nil {
 				tt.setup(t, m)
 			}
-			applyOK(t, tt.action(m))
+			applyOK(t)(tt.action(m))
 			assertState(t, m.Snapshot(), tt.want)
 		})
 	}
@@ -184,35 +184,35 @@ func TestNoOpCommandsDoNotIncrementVersion(t *testing.T) {
 		{
 			name: "pause while paused",
 			setup: func(t *testing.T, m *StateMachine) {
-				applyOK(t, m.Play("a"))
-				applyOK(t, m.Pause())
+				applyOK(t)(m.Play("a"))
+				applyOK(t)(m.Pause())
 			},
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.Pause() },
 		},
 		{
-			name: "resume while playing",
-			setup: func(t *testing.T, m *StateMachine) { applyOK(t, m.Play("a")) },
+			name:   "resume while playing",
+			setup:  func(t *testing.T, m *StateMachine) { applyOK(t)(m.Play("a")) },
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.Resume() },
 		},
 		{
-			name: "stop while stopped",
+			name:   "stop while stopped",
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.Stop() },
 		},
 		{
-			name: "next with no current or queue",
+			name:   "next with no current or queue",
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.Next() },
 		},
 		{
-			name: "previous with no current or history",
+			name:   "previous with no current or history",
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.Previous() },
 		},
 		{
-			name: "previous at position zero while playing",
-			setup: func(t *testing.T, m *StateMachine) { applyOK(t, m.Play("a")) },
+			name:   "previous at position zero while playing",
+			setup:  func(t *testing.T, m *StateMachine) { applyOK(t)(m.Play("a")) },
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.Previous() },
 		},
 		{
-			name: "clear empty queue",
+			name:   "clear empty queue",
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.QueueClear() },
 		},
 	}
@@ -224,7 +224,7 @@ func TestNoOpCommandsDoNotIncrementVersion(t *testing.T) {
 				tt.setup(t, m)
 			}
 			before := m.Snapshot()
-			got := applyOK(t, tt.action(m))
+			got := applyOK(t)(tt.action(m))
 			if got.Version != before.Version {
 				t.Fatalf("no-op version = %d, want %d", got.Version, before.Version)
 			}
@@ -237,10 +237,10 @@ func TestNoOpCommandsDoNotIncrementVersion(t *testing.T) {
 
 func TestRejectedMutationsDoNotChangeState(t *testing.T) {
 	tests := []struct {
-		name  string
-		setup func(*testing.T, *StateMachine)
+		name   string
+		setup  func(*testing.T, *StateMachine)
 		action func(*StateMachine) (protocol.PlaybackState, *protocol.APIError)
-		code  protocol.ErrorCode
+		code   protocol.ErrorCode
 	}{
 		{
 			name:   "unknown track",
@@ -249,7 +249,7 @@ func TestRejectedMutationsDoNotChangeState(t *testing.T) {
 		},
 		{
 			name:   "invalid track identifier",
-			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.QueueAdd("bad track") },
+			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.QueueAdd("bad\ntrack") },
 			code:   protocol.ErrInvalidPayload,
 		},
 		{
@@ -265,14 +265,14 @@ func TestRejectedMutationsDoNotChangeState(t *testing.T) {
 		{
 			name: "unknown queue item",
 			setup: func(t *testing.T, m *StateMachine) {
-				applyOK(t, m.QueueAdd("a"))
+				applyOK(t)(m.QueueAdd("a"))
 			},
 			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.QueueRemove("item-999") },
 			code:   protocol.ErrQueueItemNotFound,
 		},
 		{
 			name:   "invalid queue item identifier",
-			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.QueueRemove("bad item") },
+			action: func(m *StateMachine) (protocol.PlaybackState, *protocol.APIError) { return m.QueueRemove("bad\nitem") },
 			code:   protocol.ErrInvalidPayload,
 		},
 	}
@@ -300,8 +300,8 @@ func TestRejectedMutationsDoNotChangeState(t *testing.T) {
 
 func TestSnapshotsAreIsolated(t *testing.T) {
 	m := testMachine()
-	applyOK(t, m.Play("a"))
-	applyOK(t, m.QueueAdd("b"))
+	applyOK(t)(m.Play("a"))
+	applyOK(t)(m.QueueAdd("b"))
 	snapshot := m.Snapshot()
 	snapshot.Current.TrackID = "changed"
 	snapshot.Queue[0].TrackID = "changed"
@@ -315,9 +315,9 @@ func TestSnapshotsAreIsolated(t *testing.T) {
 
 func TestQueueRemovePreservesOtherSameTrackOccurrence(t *testing.T) {
 	m := testMachine()
-	first := applyOK(t, m.QueueAdd("a"))
-	second := applyOK(t, m.QueueAdd("a"))
-	state := applyOK(t, m.QueueRemove(first.Queue[0].ID))
+	first := applyOK(t)(m.QueueAdd("a"))
+	second := applyOK(t)(m.QueueAdd("a"))
+	state := applyOK(t)(m.QueueRemove(first.Queue[0].ID))
 	if len(state.Queue) != 1 || state.Queue[0].ID != second.Queue[1].ID {
 		t.Fatalf("queue after removing first occurrence = %+v, want remaining ID %q", state.Queue, second.Queue[1].ID)
 	}
@@ -370,12 +370,15 @@ func testMachine() *StateMachine {
 	return NewStateMachine(func(trackID string) bool { return known[trackID] })
 }
 
-func applyOK(t *testing.T, state protocol.PlaybackState, apiErr *protocol.APIError) protocol.PlaybackState {
+func applyOK(t *testing.T) func(protocol.PlaybackState, *protocol.APIError) protocol.PlaybackState {
 	t.Helper()
-	if apiErr != nil {
-		t.Fatalf("unexpected player error: %+v", apiErr)
+	return func(state protocol.PlaybackState, apiErr *protocol.APIError) protocol.PlaybackState {
+		t.Helper()
+		if apiErr != nil {
+			t.Fatalf("unexpected player error: %+v", apiErr)
+		}
+		return state
 	}
-	return state
 }
 
 func assertState(t *testing.T, got protocol.PlaybackState, want stateExpectation) {

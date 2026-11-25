@@ -24,7 +24,7 @@ Core NATS carries command request/reply and state/heartbeat events; it never tra
 
 ## Development requirements
 
-Go 1.25+ (see `go.mod`), Git, and a local NATS server for integration once services are implemented. Go package tests currently need no NATS broker. The library uses `os.Root` for traversal-resistant audio access.
+Go 1.26+ (see `go.mod`), Git, and a local NATS server for integration once services are implemented. Go package tests currently need no NATS broker. The library uses `os.Root` for traversal-resistant audio access.
 
 ```sh
 go test ./...
