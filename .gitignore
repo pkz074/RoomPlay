@@ -30,6 +30,7 @@ go.work.sum
 
 # Local demo binaries, including macOS executables without an extension
 .demo-bin/
+.demo-logs/
 
 # Editor/IDE
 # .idea/

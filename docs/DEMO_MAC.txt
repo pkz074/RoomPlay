@@ -8,6 +8,13 @@ Alternatively extract the supplied RoomPlay-demo-source.zip into
 Downloads/RoomPlay-demo; that method needs no Git. Do not mix copies into an older
 checkout. The playback code snapshot is 23481c5; main also contains these runbooks.
 
+QUICK START — ONE TERMINAL
+From the repository root, run: go run ./cmd/demo
+It builds/starts all six services in the background and opens the browser.
+Bedroom has real audio; the other rooms are simulated. Ctrl+C stops everything.
+The six-window instructions below are the ADVANCED manual alternative for showing
+individual service termination/restarts. They are not required to use the app.
+
 ONE-TIME PREPARATION — DO THIS BEFORE THE PRESENTATION
 
 1. Install Go 1.26 or newer from https://go.dev/dl/ if needed.

@@ -13,6 +13,13 @@ can show their logs and stop/restart them. It does not use the earlier simulatio
 only Run-RoomPlay.ps1 launcher. Stop that older demo with Stop-RoomPlay in its
 original PowerShell window before following this guide on the same laptop.
 
+QUICK START — ONE TERMINAL
+From the repository root, run: go run ./cmd/demo
+It builds/starts all six services in the background and opens the browser.
+Bedroom has real audio; the other rooms are simulated. Ctrl+C stops everything.
+The six-window instructions below are the ADVANCED manual alternative for showing
+individual service termination/restarts. They are not required to use the app.
+
 ONE-TIME PREPARATION — BEFORE THE PRESENTATION
 
 Install Go 1.26 or newer from https://go.dev/dl/ if needed. Use the Windows installer
