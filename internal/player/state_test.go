@@ -9,6 +9,57 @@ import (
 	"github.com/pkz074/RoomPlay/internal/protocol"
 )
 
+func TestStopThenPlayRetainsOccurrenceHistoryAndQueue(t *testing.T) {
+	m := NewStateMachine(func(string) bool { return true })
+	applyOK(t)(m.Play("a"))
+	applyOK(t)(m.Play("b"))
+	applyOK(t)(m.QueueAdd("b"))
+	applyOK(t)(m.QueueAdd("b"))
+	for range 3 {
+		applyOK(t)(m.Stop())
+		before := m.Snapshot()
+		after, apiErr := m.Play("b")
+		if apiErr != nil {
+			t.Fatal(apiErr)
+		}
+		want := cloneState(before)
+		want.Status = protocol.StatusPlaying
+		want.PositionMs = 0
+		want.Version++
+		if !reflect.DeepEqual(after, want) {
+			t.Fatalf("restart changed retained state: got %+v want %+v", after, want)
+		}
+	}
+}
+
+func TestPlayStillCreatesOccurrenceForOtherSelections(t *testing.T) {
+	for _, status := range []protocol.PlaybackStatus{protocol.StatusStopped, protocol.StatusPaused, protocol.StatusPlaying} {
+		for _, track := range []string{"a", "b"} {
+			if status == protocol.StatusStopped && track == "a" {
+				continue
+			}
+			t.Run(string(status)+"/"+track, func(t *testing.T) {
+				m := NewStateMachine(func(string) bool { return true })
+				applyOK(t)(m.Play("a"))
+				if status == protocol.StatusStopped {
+					applyOK(t)(m.Stop())
+				}
+				if status == protocol.StatusPaused {
+					applyOK(t)(m.Pause())
+				}
+				before := m.Snapshot()
+				after, apiErr := m.Play(track)
+				if apiErr != nil {
+					t.Fatal(apiErr)
+				}
+				if after.Current.ID == before.Current.ID || len(after.History) != 1 || after.History[0] != *before.Current {
+					t.Fatal("new selection did not archive the previous occurrence")
+				}
+			})
+		}
+	}
+}
+
 func TestPlaybackTransitions(t *testing.T) {
 	tests := []struct {
 		name   string

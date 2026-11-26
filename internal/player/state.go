@@ -42,12 +42,20 @@ func (m *StateMachine) setPositionMs(positionMs int64) {
 	}
 }
 
-// Play selects a new occurrence, retaining the upcoming queue and moving the prior current item to history.
+// Play restarts the retained stopped occurrence when selecting the same track.
+// Otherwise it selects a new occurrence and moves the prior current to history.
+// Both paths retain the upcoming queue.
 func (m *StateMachine) Play(trackID string) (protocol.PlaybackState, *protocol.APIError) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if apiErr := m.validateTrackLocked(trackID); apiErr != nil {
 		return protocol.PlaybackState{}, apiErr
+	}
+	if m.state.Status == protocol.StatusStopped && m.state.Current != nil && m.state.Current.TrackID == trackID {
+		next := cloneState(m.state)
+		next.Status = protocol.StatusPlaying
+		next.PositionMs = 0
+		return m.commitLocked(next, true)
 	}
 	item, apiErr := m.newItemLocked(trackID)
 	if apiErr != nil {
