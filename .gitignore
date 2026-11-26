@@ -28,6 +28,10 @@ go.work.sum
 # env file
 .env
 
+# Local demo binaries, including macOS executables without an extension
+.demo-bin/
+.demo-logs/
+
 # Editor/IDE
 # .idea/
 # .vscode/

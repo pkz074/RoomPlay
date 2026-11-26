@@ -81,7 +81,7 @@ PR gate: `go test ./...`, `go vet ./...`, `go build ./cmd/...`, `go test -race .
 
 ## Separate-process failure suite (P5)
 
-Run `go test -tags=process ./tests/integration -run '^TestProcess' -count=1 -timeout=5m`.
+Run `go test -tags=process ./cmd/demo ./tests/integration -run '^TestProcess' -count=1 -timeout=5m`.
 The harness builds the repository's coordinator, library and player binaries and the
 module-pinned NATS server. It launches them on loopback ports, runs three independent
 simulated rooms, and kills/restarts only the child processes it owns. It needs permission
@@ -115,3 +115,10 @@ file before another interactive run. This pause is disabled in CI.
 Optional `ROOMPLAY_AUDIO_SMOKE=1` uses the real audio backend for a short local output
 check. It requires an audio device and is disabled in CI. Backend progress alone does
 not establish human audibility or playback on multiple machines/outputs.
+
+The launcher lifecycle test in `cmd/demo` exercises the same entry point as
+`go run ./cmd/demo`: real service builds, six child processes, three fresh rooms,
+cancellation cleanup and closed listener ports. It runs silently in CI. Optional
+`ROOMPLAY_DEMO_AUDIO_TEST=1` enables a local Bedroom audio check for that test;
+it is disabled in CI. Unit tests also cover child-exit reporting during readiness
+and idempotent cleanup of every owned child process.

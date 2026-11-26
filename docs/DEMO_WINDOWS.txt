@@ -1,8 +1,8 @@
 ROOMPLAY — WINDOWS BACKUP DEMO
 Prepared November 25, 2026. Source snapshot: 23481c5 (P5 + Stop/Play fix).
 
-Use the P5 branch until its PR is merged. With Git installed, get a fresh copy:
-git clone --branch test/p5-process-failures --single-branch https://github.com/pkz074/RoomPlay.git "$env:USERPROFILE\Downloads\RoomPlay-demo"
+P5 is merged. With Git installed, get a fresh copy of main:
+git clone --branch main --single-branch https://github.com/pkz074/RoomPlay.git "$env:USERPROFILE\Downloads\RoomPlay-demo"
 
 Alternatively extract the supplied RoomPlay-demo-source.zip into
 Downloads\RoomPlay-demo with go.mod directly inside it. That method needs no Git.
@@ -12,6 +12,13 @@ This guide runs compiled programs in six visible PowerShell windows/tabs so you
 can show their logs and stop/restart them. It does not use the earlier simulation-
 only Run-RoomPlay.ps1 launcher. Stop that older demo with Stop-RoomPlay in its
 original PowerShell window before following this guide on the same laptop.
+
+QUICK START — ONE TERMINAL
+From the repository root, run: go run ./cmd/demo
+It builds/starts all six services in the background and opens the browser.
+Bedroom has real audio; the other rooms are simulated. Ctrl+C stops everything.
+The six-window instructions below are the ADVANCED manual alternative for showing
+individual service termination/restarts. They are not required to use the app.
 
 ONE-TIME PREPARATION — BEFORE THE PRESENTATION
 
