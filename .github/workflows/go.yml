@@ -43,7 +43,6 @@ jobs:
     timeout-minutes: 10
     env:
       ROOMPLAY_PROCESS_RACE: '1'
-      ROOMPLAY_EVIDENCE_DIR: ${{ runner.temp }}/roomplay-process-evidence
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -51,6 +50,8 @@ jobs:
           go-version-file: go.mod
           cache: false
       - name: Separate-process crash and recovery tests
+        env:
+          ROOMPLAY_EVIDENCE_DIR: ${{ runner.temp }}/roomplay-process-evidence
         run: go test -race -tags=process ./tests/integration -run '^TestProcess' -count=1 -timeout=5m
       - name: Save process logs and state evidence
         if: always()
