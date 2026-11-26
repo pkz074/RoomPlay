@@ -5,14 +5,25 @@ The registry rejects a second *registration* for a live room ID (DUPLICATE_ROOM_
 and fences old instances using registration tokens. But NATS does not know about
 registrations. Any process can subscribe to `roomplay.rooms.{id}.command`. If two
 processes subscribe (e.g. a stale player that never exited plus a replacement), NATS
-delivers each request to only ONE of them, so the coordinator cannot tell which one
-will receive a command. Tokens protect the coordinator's registry, not the subject.
+delivers each request to BOTH ordinary subscribers; a request/reply caller accepts
+the first reply. Tokens protect the coordinator's registry, not the subject.
 
 ## What this PR does
 - Rejects a second live instance at registration time.
 - Ignores heartbeats with a mismatched instance ID or token.
 - Replaces an instance only if the old one is offline/expired.
 - Late heartbeats for an offline room are rejected; the player must re-register.
+
+## Player cleanup and broker evidence (P3)
+The player now exits and removes its room subscriptions when initial registration
+or renewal returns DUPLICATE_ROOM_ID. Broker-backed tests verify that cleanup and
+that the legitimate player remains controllable. A separate test demonstrates
+that two ordinary subscribers both receive the same request.
+
+This cleanup does not fence an arbitrary stale subscriber before rejection is
+observed. Reply identity checks can detect some conflicts only after execution;
+they cannot undo duplicate mutations. Do not enable ambiguous command routing on
+the assumption that registration tokens or first-reply selection prevent it.
 
 ## Proposed solution (needs João's approval: touches the API contract)
 1. Add `instance_id` to every command/get_state reply.

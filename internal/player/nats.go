@@ -89,17 +89,12 @@ func (p *NATSPlayer) Run(ctx context.Context) error {
 	}
 	p.processor.SetOnStateChange(p.publishState)
 
-	lifecycleDone := make(chan struct{})
-	go func() {
-		defer close(lifecycleDone)
-		p.lifecycle(ctx)
-	}()
-	<-ctx.Done()
-	<-lifecycleDone
+	runErr := p.lifecycle(ctx)
+	p.processor.SetOnStateChange(nil)
 	unsubscribe(commandSub)
 	unsubscribe(stateSub)
 	_ = p.connection.FlushTimeout(playerFlushTimeout)
-	return nil
+	return runErr
 }
 
 func (p *NATSPlayer) subscribeUntilReady(ctx context.Context) (*nats.Subscription, *nats.Subscription, error) {
@@ -154,17 +149,22 @@ func unsubscribe(subscription *nats.Subscription) {
 	}
 }
 
-func (p *NATSPlayer) lifecycle(ctx context.Context) {
+func (p *NATSPlayer) lifecycle(ctx context.Context) error {
 	heartbeat := time.NewTicker(playerHeartbeatEvery)
 	renew := time.NewTicker(playerRenewEvery)
 	defer heartbeat.Stop()
 	defer renew.Stop()
 	p.register(ctx)
 	for {
+		// A rejected subscriber must leave the addressed room subjects. Keeping
+		// it alive would let its error reply race the legitimate player's reply.
+		if _, _, code := p.registration(); code == protocol.ErrDuplicateRoomID {
+			return fmt.Errorf("player registration rejected: %s", protocol.ErrDuplicateRoomID)
+		}
 		select {
 		case <-ctx.Done():
 			p.markUnregistered(protocol.ErrServiceUnavailable)
-			return
+			return nil
 		case <-renew.C:
 			p.register(ctx)
 		case <-heartbeat.C:

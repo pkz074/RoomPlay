@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"time"
 
@@ -36,7 +37,8 @@ func decodeStrict(data []byte, dst any) error {
 	if err := dec.Decode(dst); err != nil {
 		return err
 	}
-	if dec.More() {
+	var trailing any
+	if err := dec.Decode(&trailing); err != io.EOF {
 		return errors.New("trailing data")
 	}
 	return nil
