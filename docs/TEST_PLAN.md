@@ -77,3 +77,40 @@ Save logs (request IDs, room IDs, instance IDs, versions, failure/recovery times
 
 ## Continuous integration
 PR gate: `go test ./...`, `go vet ./...`, `go build ./cmd/...`, `go test -race ./...`. Optional broker-backed integration job should explicitly launch/stop NATS in CI. Tests should not depend on wall-clock sleeps where injectable clocks/events make deterministic assertions possible.
+
+## Separate-process failure suite (P5)
+
+Run `go test -tags=process ./tests/integration -run '^TestProcess' -count=1 -timeout=5m`.
+The harness builds the repository's coordinator, library and player binaries and the
+module-pinned NATS server. It launches them on loopback ports, runs three independent
+simulated rooms, and kills/restarts only the child processes it owns. It needs permission
+to open local TCP listeners. No separately installed NATS executable is required.
+
+The suite covers I01–I14 and I16 through real HTTP, SSE and Core NATS: room isolation,
+queue occurrence removal, playback navigation, reconnect, player/coordinator/broker
+crashes, duplicate registration, retired-instance publications, uncertain timeouts,
+missing responders, concurrent identical and distinct request IDs, and no command
+replay after reconnect. I15 additionally exercises traversal/allowlist HTTP rejection
+and a library process refusing an unlicensed catalog; detailed missing-file and
+symlink checks remain in the library component suite.
+
+Set `ROOMPLAY_PROCESS_RACE=1` and use `go test -race` to instrument both the harness
+and all child binaries. The `process` CI job does this and uploads logs and JSON
+state/timing evidence even on failure. `ROOMPLAY_EVIDENCE_DIR` chooses a persistent
+evidence directory; otherwise evidence uses a temporary directory. Use a fresh
+directory for each run. `ROOMPLAY_PROCESS_BIN_DIR` optionally chooses the build directory.
+
+The two routing fixture track IDs are labelled copies of the **same** licensed MP3;
+their source/license/attribution is retained. Simulation proves independent track
+selection and control, not different audible songs or synchronized speakers.
+
+For manual browser verification set `ROOMPLAY_BROWSER_READY_FILE` to an absolute file
+path and use a longer test timeout, e.g. `-timeout=15m`. Once automatic checks finish,
+the harness writes the live controller URL there and waits up to ten minutes. Open
+that URL, check room switching, playback, queue controls and refresh; create the file
+`<ready-file>.continue` to let the suite finish and clean up. Remove any old continuation
+file before another interactive run. This pause is disabled in CI.
+
+Optional `ROOMPLAY_AUDIO_SMOKE=1` uses the real audio backend for a short local output
+check. It requires an audio device and is disabled in CI. Backend progress alone does
+not establish human audibility or playback on multiple machines/outputs.

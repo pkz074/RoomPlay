@@ -298,7 +298,7 @@
       const progress = duration > 0 ? Math.min(100, position / duration * 100) : 0;
       const statusLabel = state.status === "playing" ? "Playing" : state.status === "paused" ? "Paused" : "Stopped";
       dom.playerContent.innerHTML = `<div class="track-hero">
-        <div class="cover" aria-hidden="true">${escapeHtml((title[0] || "?").toUpper())}</div>
+        <div class="cover" aria-hidden="true">${escapeHtml((title[0] || "?").toUpperCase())}</div>
         <div class="track-info">
           ${offline ? '<div class="stale-state">Offline · controls disabled</div>' : stale ? '<div class="stale-state">Stale state · refresh to verify</div>' : ""}
           <div class="playback-status">${statusLabel}</div>

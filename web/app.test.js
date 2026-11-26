@@ -1,9 +1,44 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { readFileSync } = require("node:fs");
+const vm = require("node:vm");
 const {
   formatDuration, statePosition, isNewerState, applyStateSnapshot,
   makeRequestId, escapeHtml, applyMutationResult, MockApi, ApiClient
 } = require("./app.js");
+
+test("browser startup renders stopped and playing rooms, catalog and queue without errors", async () => {
+  const source = readFileSync(require.resolve("./app.js"), "utf8");
+  for (const playing of [false, true]) {
+    const elements = new Map();
+    const element = (id) => {
+      if (!elements.has(id)) elements.set(id, {
+        innerHTML: "", textContent: "", attributes: {}, children: [],
+        addEventListener() {}, querySelectorAll: () => [], querySelector: () => null,
+        setAttribute(name, value) { this.attributes[name] = value; },
+        appendChild(child) { this.children.push(child); }
+      });
+      return elements.get(id);
+    };
+    const state = { status: playing ? "playing" : "stopped", current: playing ? { id: "i1", track_id: "t1" } : null,
+      position_ms: 0, history: [], queue: [{ id: "i2", track_id: "t1" }], version: 1 };
+    const context = vm.createContext({
+      URLSearchParams, Date, setInterval() {}, setTimeout() {},
+      document: { readyState: "complete", getElementById: element, querySelectorAll: () => [], createElement: () => element("toast") },
+      fetch: async (url) => ({ ok: true, text: async () => JSON.stringify(url.endsWith("/rooms") ? {
+        rooms: [{ id: "bedroom", name: "Bedroom", instance_id: "i", availability: "online", state_stale: false, state }]
+      } : { tracks: [{ id: "t1", title: "lost <dream>", artist: "Artist", duration_ms: 220000 }] }) })
+    });
+    vm.runInContext(source, context);
+    await new Promise(setImmediate);
+    assert.equal(element("connectionBadge").textContent, "REST connected");
+    assert.equal(element("toastRegion").children.length, 0);
+    assert.match(element("trackList").innerHTML, /lost &lt;dream&gt;/);
+    assert.match(element("queueList").innerHTML, /i2/);
+    assert.match(element("playerContent").innerHTML, playing ? />L<\/div>/ : />N<\/div>/);
+    assert.equal(element("primaryButton").attributes["aria-label"], playing ? "Pause playback" : "Play selected track");
+  }
+});
 
 test("formatDuration handles positive and negative durations", () => {
   assert.equal(formatDuration(220000), "3:40");

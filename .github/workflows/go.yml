@@ -38,6 +38,28 @@ jobs:
       - name: Real NATS broker integration and race tests
         run: go test -race -tags=broker ./tests/integration -run '^TestBroker' -count=1 -timeout=2m
 
+  process:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ROOMPLAY_PROCESS_RACE: '1'
+      ROOMPLAY_EVIDENCE_DIR: ${{ runner.temp }}/roomplay-process-evidence
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Separate-process crash and recovery tests
+        run: go test -race -tags=process ./tests/integration -run '^TestProcess' -count=1 -timeout=5m
+      - name: Save process logs and state evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: process-failure-evidence
+          path: ${{ runner.temp }}/roomplay-process-evidence
+          if-no-files-found: warn
+
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 5
