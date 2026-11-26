@@ -42,6 +42,8 @@ type Room struct {
 	Token         string
 	LastHeartbeat time.Time // coordinator receive time, never the sender's clock
 	Online        bool
+	State         *protocol.PlaybackState
+	StateStale    bool
 }
 
 // Change describes an availability transition (online <-> offline).
@@ -59,6 +61,13 @@ type Registry struct {
 	onChange       func(Change)
 	pendingChanges []Change
 	notifying      bool
+	listeners      []func(Change)
+}
+
+func (r *Registry) ObserveAvailability(listener func(Change)) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.listeners = append(r.listeners, listener)
 }
 
 // NewRegistry creates a registry. onChange may be nil. It is called AFTER the
@@ -96,7 +105,7 @@ func regFailure(roomID string, code protocol.ErrorCode, msg string) protocol.Reg
 // queueChangesLocked records transitions before releasing the mutation lock.
 // Exactly one caller owns delivery; callbacks may reenter registry mutations.
 func (r *Registry) queueChangesLocked(changes []Change) bool {
-	if r.onChange == nil || len(changes) == 0 {
+	if (r.onChange == nil && len(r.listeners) == 0) || len(changes) == 0 {
 		return false
 	}
 	r.pendingChanges = append(r.pendingChanges, changes...)
@@ -111,6 +120,7 @@ func (r *Registry) notify() {
 	for {
 		r.mu.Lock()
 		changes := r.pendingChanges
+		listeners := append([]func(Change){}, r.listeners...)
 		r.pendingChanges = nil
 		if len(changes) == 0 {
 			r.notifying = false
@@ -119,7 +129,12 @@ func (r *Registry) notify() {
 		}
 		r.mu.Unlock()
 		for _, change := range changes {
-			r.onChange(change)
+			if r.onChange != nil {
+				r.onChange(change)
+			}
+			for _, listener := range listeners {
+				listener(change)
+			}
 		}
 	}
 }
@@ -131,6 +146,7 @@ func (r *Registry) expireLocked() []Change {
 	for _, room := range r.rooms {
 		if room.Online && now.Sub(room.LastHeartbeat) >= r.timeout {
 			room.Online = false
+			room.StateStale = true
 			changes = append(changes, Change{RoomID: room.ID, Availability: protocol.RoomOffline})
 		}
 	}
@@ -162,7 +178,7 @@ func (r *Registry) Register(req protocol.RegistrationRequest) protocol.Registrat
 			resp = regFailure(req.RoomID, protocol.ErrServiceUnavailable, "Could not create registration.")
 			break
 		}
-		room = &Room{ID: req.RoomID, Name: name, InstanceID: req.InstanceID, Token: token, LastHeartbeat: now, Online: true}
+		room = &Room{ID: req.RoomID, Name: name, InstanceID: req.InstanceID, Token: token, LastHeartbeat: now, Online: true, StateStale: true}
 		r.rooms[req.RoomID] = room
 		changes = append(changes, Change{RoomID: room.ID, Availability: protocol.RoomOnline})
 		resp = okResponse(room)
@@ -174,6 +190,7 @@ func (r *Registry) Register(req protocol.RegistrationRequest) protocol.Registrat
 		room.LastHeartbeat = now
 		room.Online = true
 		if !wasOnline {
+			room.StateStale = true
 			changes = append(changes, Change{RoomID: room.ID, Availability: protocol.RoomOnline})
 		}
 		resp = okResponse(room)
@@ -190,6 +207,8 @@ func (r *Registry) Register(req protocol.RegistrationRequest) protocol.Registrat
 		}
 		room.Name = name
 		room.InstanceID = req.InstanceID
+		room.State = nil
+		room.StateStale = true
 		room.Token = token
 		room.LastHeartbeat = now
 		room.Online = true
@@ -259,7 +278,9 @@ func (r *Registry) Get(id string) (Room, bool) {
 	if !ok {
 		return Room{}, false
 	}
-	return *room, true
+	out := *room
+	out.State = copyPlaybackState(room.State)
+	return out, true
 }
 
 // List returns copies of all rooms sorted by ID.
@@ -268,7 +289,9 @@ func (r *Registry) List() []Room {
 	defer r.mu.Unlock()
 	out := make([]Room, 0, len(r.rooms))
 	for _, room := range r.rooms {
-		out = append(out, *room)
+		item := *room
+		item.State = copyPlaybackState(room.State)
+		out = append(out, item)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out

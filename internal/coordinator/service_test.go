@@ -19,7 +19,7 @@ func TestRegisterReply(t *testing.T) {
 		t.Fatalf("valid request failed: %s", raw)
 	}
 
-	for _, bad := range []string{`not json`, `{"room_id":"bedroom","name":"B","instance_id":"x","extra":1}`, ``} {
+	for _, bad := range []string{`not json`, `{"room_id":"bedroom","name":"B","instance_id":"x","extra":1}`, `{"room_id":"bedroom","name":"B","instance_id":"x"}]`, `{"room_id":"bedroom","name":"B","instance_id":"x"}}`, ``} {
 		var resp protocol.RegistrationResponse
 		raw := svc.registerReply([]byte(bad))
 		if err := json.Unmarshal(raw, &resp); err != nil || resp.Success || resp.Error == nil {

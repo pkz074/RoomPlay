@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -18,13 +20,36 @@ const maxMessageBytes = 4 << 10 // registration/heartbeat messages are tiny
 
 // Service connects the Registry to NATS.
 type Service struct {
-	nc  *nats.Conn
-	reg *Registry
-	log *log.Logger
+	nc             *nats.Conn
+	reg            *Registry
+	log            *log.Logger
+	events         *EventHub
+	ctx            context.Context
+	cancel         context.CancelFunc
+	refresh        chan Room
+	workers        sync.WaitGroup
+	requester      brokerRequester
+	RequestTimeout time.Duration // configure before Start
 }
 
 func NewService(nc *nats.Conn, reg *Registry, logger *log.Logger) *Service {
-	return &Service{nc: nc, reg: reg, log: logger}
+	ctx, cancel := context.WithCancel(context.Background())
+	s := &Service{nc: nc, requester: nc, reg: reg, log: logger, events: NewEventHub(), ctx: ctx, cancel: cancel, refresh: make(chan Room, 128), RequestTimeout: 1500 * time.Millisecond}
+	if nc == nil {
+		s.requester = nil
+	} else {
+		previous := nc.DisconnectErrHandler()
+		nc.SetDisconnectErrHandler(func(connection *nats.Conn, err error) {
+			reg.MarkStatesStale()
+			if previous != nil {
+				previous(connection, err)
+			}
+		})
+	}
+	reg.ObserveAvailability(func(c Change) {
+		s.events.Publish("room.availability", protocol.AvailabilityEvent{RoomID: c.RoomID, Availability: c.Availability})
+	})
+	return s
 }
 
 func decodeStrict(data []byte, dst any) error {
@@ -36,7 +61,8 @@ func decodeStrict(data []byte, dst any) error {
 	if err := dec.Decode(dst); err != nil {
 		return err
 	}
-	if dec.More() {
+	var trailing any
+	if err := dec.Decode(&trailing); err != io.EOF {
 		return errors.New("trailing data")
 	}
 	return nil
@@ -66,6 +92,15 @@ func (s *Service) handleRegister(msg *nats.Msg) {
 	if err := msg.Respond(s.registerReply(msg.Data)); err != nil {
 		s.log.Printf("register reply failed: %v", err)
 	}
+	var req protocol.RegistrationRequest
+	if decodeStrict(msg.Data, &req) == nil {
+		if room, ok := s.reg.Get(req.RoomID); ok && room.Online && room.InstanceID == req.InstanceID {
+			select {
+			case s.refresh <- room:
+			default:
+			}
+		}
+	}
 }
 
 func (s *Service) handleHeartbeat(msg *nats.Msg) {
@@ -81,14 +116,34 @@ func (s *Service) handleHeartbeat(msg *nats.Msg) {
 
 // Start installs subscriptions and flushes them to the broker.
 func (s *Service) Start() error {
+	if s.nc == nil {
+		return errors.New("NATS connection is required")
+	}
+	if _, err := s.nc.Subscribe("roomplay.rooms.*.state", s.handleState); err != nil {
+		return err
+	}
 	if _, err := s.nc.Subscribe(protocol.SubjectRegister, s.handleRegister); err != nil {
 		return fmt.Errorf("subscribe register: %w", err)
 	}
 	if _, err := s.nc.Subscribe(protocol.SubjectHeartbeat, s.handleHeartbeat); err != nil {
 		return fmt.Errorf("subscribe heartbeat: %w", err)
 	}
-	if err := s.nc.Flush(); err != nil {
+	if err := s.nc.FlushTimeout(2 * time.Second); err != nil {
 		return fmt.Errorf("flush subscriptions: %w", err)
+	}
+	for range 4 {
+		s.workers.Add(1)
+		go func() {
+			defer s.workers.Done()
+			for {
+				select {
+				case <-s.ctx.Done():
+					return
+				case room := <-s.refresh:
+					_, _ = s.readRoom(s.ctx, room)
+				}
+			}
+		}()
 	}
 	return nil
 }
@@ -108,4 +163,12 @@ func (s *Service) RunExpiry(ctx context.Context, every time.Duration) {
 }
 
 // Stop drains in-flight messages and closes the connection.
-func (s *Service) Stop() error { return s.nc.Drain() }
+func (s *Service) Stop() error {
+	s.cancel()
+	s.events.Close()
+	s.workers.Wait()
+	if s.nc == nil {
+		return nil
+	}
+	return s.nc.Drain()
+}

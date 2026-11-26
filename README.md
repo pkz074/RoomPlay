@@ -2,7 +2,7 @@
 
 A distributed multi-room music player built with Go, featuring independent playback nodes, centralized coordination, and fault-tolerant communication.
 
-> **Status:** The library serves catalog metadata and allowlisted MP3s. The player supports simulation and real MP3 playback, serialized commands, request deduplication, and NATS registration/state events. The coordinator REST/SSE service remains scaffold work, so the complete browser-to-room demo is not yet runnable.
+> **Status:** Library, player, and coordinator REST/SSE implementations are available. Real-broker tests exercise the HTTP-to-player path and state streams. The full independent-process failure demonstration remains P5.
 
 ## Architecture
 
@@ -35,7 +35,9 @@ go build ./cmd/...
 
 Environment variable examples: [`.env.example`](.env.example). Copy its values into your terminal environment when running services; **no automatic .env loader is provided**.
 
-The player needs a running library and Core NATS broker. Set `ROOM_ID` and optionally `ROOM_NAME`, `NATS_URL`, `LIBRARY_URL`, and `PLAYER_MODE=simulation`, then run `go run ./cmd/player`. Use `PLAYER_MODE=audio` to decode library MP3s and play them through the machine's default audio device; this mode requires an available audio device and downloads each selected track from `LIBRARY_URL`. The player installs its room subscriptions before registration, keeps local playback running if the broker disconnects, and retries registration after recovery. The coordinator is still scaffold work, so without a coordinator the player remains unregistered and rejects room commands. See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for the planned multi-process startup sequence.
+Start Core NATS, then `go run ./cmd/library` and `go run ./cmd/coordinator` from the repository root. Open [the local controller](http://localhost:8080). The coordinator serves `web/`, the `/api/v1` REST API and SSE; configure `COORDINATOR_ADDR`, `LIBRARY_URL`, `NATS_URL` and optional `WEB_ROOT` as needed. No automatic `.env` loading is provided.
+
+Set `ROOM_ID` (and optionally `ROOM_NAME`) separately for each room, then run `go run ./cmd/player`. `PLAYER_MODE=simulation` needs no speakers; `PLAYER_MODE=audio` uses the default audio device and downloads tracks from the library. Players keep local playback running through coordinator/broker outages and renew registration after recovery. Upgrade players and coordinator together for the P4 instance-targeted messaging contract. See [API.md](docs/API.md).
 
 Simulation mode needs no audio hardware and remains the recommended mode for tests and multi-room demonstrations.
 

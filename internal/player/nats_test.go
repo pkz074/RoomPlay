@@ -46,11 +46,11 @@ func TestNATSPlayerFlushesBeforeRegisteringAndPublishesFencedState(t *testing.T)
 	}
 
 	client.publishState(protocol.NewPlaybackState())
-	if len(connection.published) != 1 || connection.published[0].subject != protocol.StateSubject("bedroom") {
+	if len(connection.published) != 2 || connection.published[1].subject != protocol.StateSubject("bedroom") {
 		t.Fatalf("published messages = %+v", connection.published)
 	}
 	var event protocol.StateEvent
-	if err := json.Unmarshal(connection.published[0].data, &event); err != nil {
+	if err := json.Unmarshal(connection.published[1].data, &event); err != nil {
 		t.Fatalf("decode state event: %v", err)
 	}
 	if event.RoomID != "bedroom" || event.InstanceID != "instance-1" || event.RegistrationToken != "lease-1" {
@@ -167,10 +167,10 @@ func TestNATSPlayerSubscribesAndFlushesBeforeRegistration(t *testing.T) {
 type fakePlayerNATS struct {
 	mu                sync.Mutex
 	registrationReply []byte
-	calls              []string
-	requestData        []byte
-	published          []publishedPlayerMessage
-	cancel             context.CancelFunc
+	calls             []string
+	requestData       []byte
+	published         []publishedPlayerMessage
+	cancel            context.CancelFunc
 }
 
 type publishedPlayerMessage struct {

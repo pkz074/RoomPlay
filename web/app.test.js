@@ -186,6 +186,31 @@ test("missing and invalid results cannot corrupt room state", () => {
   assert.equal(rooms[0].state.version, 1);
 });
 
+test("delayed mutations cannot overwrite a replacement room instance", () => {
+  const rooms = [{ id: "bedroom", instance_id: "new", state: { version: 1 } }];
+  const views = new Map([["bedroom", { instanceId: "new", version: 1 }]]);
+  assert.equal(applyMutationResult(rooms, views, "bedroom", { instance_id: "old", state: { version: 99 } }, 100, "old"), false);
+  assert.equal(applyMutationResult(rooms, views, "bedroom", { state: { version: 99 } }, 100, "old"), false);
+  assert.equal(applyMutationResult(rooms, views, "bedroom", { instance_id: "old", state: { version: 99 } }, 100, "new"), false);
+  assert.equal(rooms[0].state.version, 1);
+  assert.equal(applyMutationResult(rooms, views, "bedroom", { instance_id: "new", state: { version: 2 } }, 100, "new"), true);
+});
+
+test("ApiClient binds all mutations to the expected room instance", async () => {
+  const original = globalThis.fetch;
+  const headers = [];
+  globalThis.fetch = async (_, options) => { headers.push(options.headers); return { ok: true, text: async () => "{}" }; };
+  try {
+    const api = new ApiClient("");
+    await api.command("bedroom", { type: "playback.pause", payload: {} }, "r1", "instance-1");
+    await api.queueAdd("bedroom", { track_id: "a" }, "r2", "instance-1");
+    await api.queueRemove("bedroom", "item", "r3", "instance-1");
+    await api.queueClear("bedroom", "r4", "instance-1");
+    assert.equal(headers.length, 4);
+    for (const h of headers) assert.equal(h["X-Room-Instance-ID"], "instance-1");
+  } finally { globalThis.fetch = original; }
+});
+
 test("MockApi removes queue entries by occurrence rather than track ID", async () => {
   const api = new MockApi();
   const initial = (await api.room("bedroom")).state.queue.length;

@@ -33,13 +33,13 @@ All developers own tests for their components. Only João approves changes to sh
 ## Local prerequisites
 Install Go (team should pin one supported version in go.mod), NATS Server and Git. Optional: NATS CLI; Go audio backend may need OS audio dependencies. Avoid frameworks, databases, JetStream and Docker unless agreed. Do not store copyrighted MP3s without reuse rights in repo.
 
-## Local running contract (to implement)
+## Local running
 1. Start Core NATS broker locally on :4222.
 2. Start music library on :8090.
 3. Start coordinator on :8080.
 4. Start three player processes with distinct `ROOM_ID` and `ROOM_NAME`; point them to same `NATS_URL` and reachable `LIBRARY_URL`.
-5. Open coordinator-served web app or separately served `web/` frontend.
-Example environmental names (must be implemented and documented consistently):
+5. Open the coordinator-served controller at `http://localhost:8080`. The default static directory is `web/`; override `WEB_ROOT` when launching from elsewhere.
+Environment names:
 ```text
 NATS_URL=nats://127.0.0.1:4222
 COORDINATOR_ADDR=:8080
