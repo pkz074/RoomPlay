@@ -1,0 +1,158 @@
+ROOMPLAY — WINDOWS BACKUP DEMO
+Prepared November 25, 2026. Source snapshot: 23481c5 (P5 + Stop/Play fix).
+
+Use the P5 branch until its PR is merged. With Git installed, get a fresh copy:
+git clone --branch test/p5-process-failures --single-branch https://github.com/pkz074/RoomPlay.git "$env:USERPROFILE\Downloads\RoomPlay-demo"
+
+Alternatively extract the supplied RoomPlay-demo-source.zip into
+Downloads\RoomPlay-demo with go.mod directly inside it. That method needs no Git.
+Do not mix copies into an older checkout. Playback code snapshot: 23481c5.
+
+This guide runs compiled programs in six visible PowerShell windows/tabs so you
+can show their logs and stop/restart them. It does not use the earlier simulation-
+only Run-RoomPlay.ps1 launcher. Stop that older demo with Stop-RoomPlay in its
+original PowerShell window before following this guide on the same laptop.
+
+ONE-TIME PREPARATION — BEFORE THE PRESENTATION
+
+Install Go 1.26 or newer from https://go.dev/dl/ if needed. Use the Windows installer
+appropriate for your laptop. Open a NEW PowerShell after installation.
+Official instructions: https://go.dev/doc/install
+
+Paste these commands in PowerShell. Stop if any build fails. The first build needs
+Internet access to download modules. No separate NATS installation is needed.
+These are ordinary non-race builds; no C compiler is required for this demo.
+
+Set-Location "$env:USERPROFILE\Downloads\RoomPlay-demo"
+go version
+New-Item -ItemType Directory -Path .demo-bin -Force | Out-Null
+$env:CGO_ENABLED = '0'
+go build -o .demo-bin\nats-server.exe github.com/nats-io/nats-server/v2
+go build -o .demo-bin\library.exe ./cmd/library
+go build -o .demo-bin\coordinator.exe ./cmd/coordinator
+go build -o .demo-bin\player.exe ./cmd/player
+
+START THE DEMO — SIX POWERSHELL WINDOWS/TABS
+
+Run each section in a different window/tab, in order. Leave each process running.
+All services listen only on this laptop. The environment variables below apply to
+each window; a .env file is not automatically loaded.
+
+WINDOW 1 — BROKER
+Set-Location "$env:USERPROFILE\Downloads\RoomPlay-demo"
+.\.demo-bin\nats-server.exe -a 127.0.0.1 -p 4222
+
+WINDOW 2 — MUSIC LIBRARY
+Set-Location "$env:USERPROFILE\Downloads\RoomPlay-demo"
+$env:LIBRARY_ADDR = '127.0.0.1:8090'
+$env:LIBRARY_URL = 'http://127.0.0.1:8090'
+$env:LIBRARY_CATALOG = 'assets/music/catalog.json'
+$env:LIBRARY_AUDIO_ROOT = 'assets/music'
+.\.demo-bin\library.exe
+
+WINDOW 3 — COORDINATOR + BROWSER API
+Set-Location "$env:USERPROFILE\Downloads\RoomPlay-demo"
+$env:NATS_URL = 'nats://127.0.0.1:4222'
+$env:LIBRARY_URL = 'http://127.0.0.1:8090'
+$env:COORDINATOR_ADDR = '127.0.0.1:8080'
+$env:WEB_ROOT = 'web'
+.\.demo-bin\coordinator.exe
+
+WINDOW 4 — BEDROOM: REAL AUDIO ON THE DEFAULT WINDOWS OUTPUT
+Set-Location "$env:USERPROFILE\Downloads\RoomPlay-demo"
+$env:ROOM_ID = 'bedroom'
+$env:ROOM_NAME = 'Bedroom'
+$env:PLAYER_MODE = 'audio'
+$env:NATS_URL = 'nats://127.0.0.1:4222'
+$env:LIBRARY_URL = 'http://127.0.0.1:8090'
+.\.demo-bin\player.exe
+
+WINDOW 5 — KITCHEN: SIMULATED, SILENT
+Set-Location "$env:USERPROFILE\Downloads\RoomPlay-demo"
+$env:ROOM_ID = 'kitchen'
+$env:ROOM_NAME = 'Kitchen'
+$env:PLAYER_MODE = 'simulation'
+$env:NATS_URL = 'nats://127.0.0.1:4222'
+$env:LIBRARY_URL = 'http://127.0.0.1:8090'
+.\.demo-bin\player.exe
+
+WINDOW 6 — LIVING ROOM: SIMULATED, SILENT
+Set-Location "$env:USERPROFILE\Downloads\RoomPlay-demo"
+$env:ROOM_ID = 'livingroom'
+$env:ROOM_NAME = 'LivingRoom'
+$env:PLAYER_MODE = 'simulation'
+$env:NATS_URL = 'nats://127.0.0.1:4222'
+$env:LIBRARY_URL = 'http://127.0.0.1:8090'
+.\.demo-bin\player.exe
+
+OPEN THE CONTROLLER
+Open http://127.0.0.1:8080 in your browser. Wait for three Online rooms.
+Optional seventh PowerShell window:
+Start-Process 'http://127.0.0.1:8080'
+
+SOUND REHEARSAL — IMPORTANT
+
+Select the presentation speaker/output in Windows Sound settings BEFORE starting
+Bedroom. Check master volume, per-app volume/mute and HDMI/Bluetooth output.
+Select Bedroom, then click Play now on Lost in a Dream. Sound comes from the Go
+player process, not from an HTML audio element in the browser.
+
+Preparing the full MP3 exceeded the coordinator's 1.5-second timeout in the Windows
+audio check. The API returned 504 COMMAND_TIMEOUT with outcome unknown, but playback
+subsequently started. If this happens, wait a few seconds and refresh state; do not
+keep clicking Play now. AUDIO_ERROR requires checking Bedroom/library console output.
+
+Once you HEAR the song, Pause it before presenting. Begin the live demo with Resume,
+which uses the already-prepared audio. Play now, Next/Previous and Stop then Play
+can require audio preparation again; rehearse them separately. A timeout remains
+an unknown outcome, not a confirmed success or failure.
+
+Only Bedroom is audible; Kitchen and LivingRoom demonstrate independent simulated
+players. The normal catalog has one song, which can be queued multiple times.
+This is not a demonstration of multiple physical speakers or different songs.
+
+SUGGESTED LIVE DEMO — ABOUT THREE MINUTES
+
+1. Show the three Online rooms; explain each owns its state/history/queue.
+2. Resume Bedroom and let the audience hear a few seconds.
+3. Add the song twice to Bedroom's queue; remove one occurrence. Only one disappears.
+4. Select Kitchen, click Play now and add a queue entry. Bedroom remains audible.
+5. Pause/Resume Bedroom to show position freezing and preserved state.
+6. Ctrl+C in WINDOW 5 stops Kitchen. After about six seconds it is Offline while
+   Bedroom continues. Up, Enter in WINDOW 5 repeats .\.demo-bin\player.exe using
+   its existing environment. Kitchen returns with fresh state and an empty queue.
+7. Ctrl+C in WINDOW 3 stops the coordinator; Bedroom's audio continues. Up, Enter
+   restarts it. Wait a few seconds for room registration and browser recovery.
+8. If time permits, Ctrl+C then Up/Enter in WINDOW 1 restarts the broker. Audio
+   continues while controls are unavailable; control recovers afterward.
+9. Finish by pausing Bedroom. Explain the difference between control-plane recovery
+   and a player's own restart, which loses its in-memory queue.
+
+Separate rehearsal check for the latest change: More actions -> Stop playback,
+then the main Play button. It restarts at zero without adding history or changing
+the queue. Allow for the audio-preparation caveat above.
+
+Ctrl+C demonstrates service termination/recovery. Automated P5 tests additionally
+use forced process kills to exercise abrupt crashes.
+
+OPTIONAL CHECKS IN A SEVENTH POWERSHELL
+Invoke-RestMethod 'http://127.0.0.1:8080/api/v1/rooms' | ConvertTo-Json -Depth 8
+Invoke-RestMethod 'http://127.0.0.1:8090/tracks' | ConvertTo-Json -Depth 5
+Invoke-RestMethod 'http://127.0.0.1:8080/api/v1/rooms/bedroom' | ConvertTo-Json -Depth 8
+
+SHUTDOWN / TROUBLESHOOTING
+
+Ctrl+C in each of the six service windows: players first, then coordinator, library
+and broker. Closing the browser does not stop services/audio. Never start two
+Bedroom instances together. If a port is occupied, stop your old RoomPlay demo;
+do not terminate an unidentified process. Restart Bedroom after changing the audio
+output if necessary. Rehearse on the actual backup laptop before the presentation.
+
+After the build, everything uses local files/services and needs no Internet.
+The backend audio check initialized a Windows device and advanced through playback;
+human audibility was not confirmed by the assistant. Verify the sound yourself.
+
+LICENSE CREDIT
+Lost in a Dream — Eternity Arcade. Wikimedia Commons MP3 derivative, listed CC BY 4.0.
+Keep assets/music/ATTRIBUTION.md and catalog.json with the audio; they contain source,
+attribution, transcoding information and license-verification limits.

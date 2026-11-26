@@ -1,0 +1,143 @@
+ROOMPLAY — MACBOOK DEMO
+Prepared November 25, 2026. Source snapshot: 23481c5 (P5 + Stop/Play fix).
+
+Use the P5 branch until its PR is merged. With Git installed, get a fresh copy:
+git clone --branch test/p5-process-failures --single-branch https://github.com/pkz074/RoomPlay.git "$HOME/Downloads/RoomPlay-demo"
+
+Alternatively extract the supplied RoomPlay-demo-source.zip into
+Downloads/RoomPlay-demo; that method needs no Git. Do not mix copies into an older
+checkout. The playback code snapshot is 23481c5; this branch also contains runbooks.
+
+ONE-TIME PREPARATION — DO THIS BEFORE THE PRESENTATION
+
+1. Install Go 1.26 or newer from https://go.dev/dl/ if needed.
+   Choose macOS ARM64 for Apple Silicon, or macOS x86-64 for an Intel Mac.
+   The official .pkg installer sets up Go. Open a NEW Terminal afterward.
+   Check your processor with: uname -m
+
+2. In Terminal, paste these commands. Stop if any build fails.
+   The first build needs Internet access to download Go modules. Build on the Mac;
+   Windows .exe files will not run there. These are ordinary, non-race demo builds.
+
+cd "$HOME/Downloads/RoomPlay-demo"
+go version
+mkdir -p .demo-bin
+CGO_ENABLED=0 go build -o .demo-bin/nats-server github.com/nats-io/nats-server/v2
+CGO_ENABLED=0 go build -o .demo-bin/library ./cmd/library
+CGO_ENABLED=0 go build -o .demo-bin/coordinator ./cmd/coordinator
+CGO_ENABLED=0 go build -o .demo-bin/player ./cmd/player
+
+No separate NATS install is needed. Oto v3.5.0 supports macOS without Cgo and
+automatically links AudioToolbox; these builds do not require an added audio library.
+Official references: https://github.com/ebitengine/oto/blob/v3.5.0/README.md
+and https://go.dev/doc/install
+
+START THE DEMO — SIX TERMINAL TABS/WINDOWS
+
+Run each section in a different tab, in this order. Leave each process running.
+Use Cmd+T to open another Terminal tab. Every tab begins by changing directory.
+All services bind to this laptop's loopback interface.
+
+TAB 1 — BROKER
+cd "$HOME/Downloads/RoomPlay-demo"
+./.demo-bin/nats-server -a 127.0.0.1 -p 4222
+
+TAB 2 — MUSIC LIBRARY
+cd "$HOME/Downloads/RoomPlay-demo"
+LIBRARY_ADDR=127.0.0.1:8090 LIBRARY_URL=http://127.0.0.1:8090 LIBRARY_CATALOG=assets/music/catalog.json LIBRARY_AUDIO_ROOT=assets/music ./.demo-bin/library
+
+TAB 3 — COORDINATOR + BROWSER API
+cd "$HOME/Downloads/RoomPlay-demo"
+NATS_URL=nats://127.0.0.1:4222 LIBRARY_URL=http://127.0.0.1:8090 COORDINATOR_ADDR=127.0.0.1:8080 WEB_ROOT=web ./.demo-bin/coordinator
+
+TAB 4 — BEDROOM: REAL AUDIO ON THIS MAC'S DEFAULT OUTPUT
+cd "$HOME/Downloads/RoomPlay-demo"
+ROOM_ID=bedroom ROOM_NAME=Bedroom PLAYER_MODE=audio NATS_URL=nats://127.0.0.1:4222 LIBRARY_URL=http://127.0.0.1:8090 ./.demo-bin/player
+
+TAB 5 — KITCHEN: SIMULATED, SILENT
+cd "$HOME/Downloads/RoomPlay-demo"
+ROOM_ID=kitchen ROOM_NAME=Kitchen PLAYER_MODE=simulation NATS_URL=nats://127.0.0.1:4222 LIBRARY_URL=http://127.0.0.1:8090 ./.demo-bin/player
+
+TAB 6 — LIVING ROOM: SIMULATED, SILENT
+cd "$HOME/Downloads/RoomPlay-demo"
+ROOM_ID=livingroom ROOM_NAME=LivingRoom PLAYER_MODE=simulation NATS_URL=nats://127.0.0.1:4222 LIBRARY_URL=http://127.0.0.1:8090 ./.demo-bin/player
+
+OPEN THE CONTROLLER
+Open http://127.0.0.1:8080 in Safari or Chrome. Wait until all three rooms are Online.
+Optional seventh Terminal tab:
+open http://127.0.0.1:8080
+
+SOUND REHEARSAL — IMPORTANT
+
+Choose your intended output in macOS Sound settings BEFORE starting Bedroom.
+Check volume/mute and any HDMI/Bluetooth output selected for the presentation.
+Select Bedroom in RoomPlay, then click Play now on Lost in a Dream. The sound comes
+from the Go Bedroom process, not an HTML audio player in the browser.
+
+Preparing the full MP3 can take longer than the coordinator's 1.5-second request
+timeout. This happened in the Windows audio check: the API returned 504 but the
+player subsequently entered Playing. A warning says the outcome is unknown.
+Wait a few seconds and refresh room state; do not repeatedly click Play now.
+If it reports AUDIO_ERROR, inspect Bedroom's Terminal and the library's Terminal.
+
+Once you HEAR the song, click Pause. Leave Bedroom paused before the presentation.
+Begin the live demo using Resume, which uses the already-prepared song. Selecting
+Play now, Next/Previous, or Stop then Play can require audio preparation again.
+Rehearse those separately before choosing to show them live. A timeout does not
+prove that the command failed, and should not be presented as a successful reply.
+
+The normal catalog has ONE song. You can queue it multiple times to demonstrate
+distinct queue occurrences. Kitchen and LivingRoom are intentionally silent.
+This setup does not demonstrate three physical speakers or different songs.
+
+SUGGESTED LIVE DEMO — ABOUT THREE MINUTES
+
+1. Show three rooms Online. Explain each owns its own current track, queue/history.
+2. Select Bedroom and Resume. Let the audience hear the song for a few seconds.
+3. Add the song to Bedroom's queue twice; remove one entry. Show only one disappears.
+4. Select Kitchen, click Play now and add a queue entry. Bedroom remains audible.
+   Explain Kitchen is simulated here, but is an independent player process.
+5. Pause/Resume Bedroom. Queue/history are retained and position freezes while paused.
+6. Stop Kitchen using Ctrl+C in TAB 5. Wait about six seconds: Kitchen becomes Offline
+   while Bedroom stays audible. In TAB 5, press Up then Enter to rerun its launch
+   command. Kitchen returns Online with fresh state and an empty queue/history.
+7. In TAB 3, Ctrl+C stops the coordinator. Bedroom's sound continues; browser control
+   disconnects. Up, Enter restarts the coordinator. Wait a few seconds for players
+   to re-register and browser snapshots to recover.
+8. If time permits, repeat Ctrl+C, then Up/Enter in TAB 1 for the broker. Bedroom
+   continues playing; controls are unavailable during the outage, then recover.
+9. Finish by pausing Bedroom. Explain control-plane failures do not stop prepared
+   local audio, but a player's own restart loses its in-memory queue.
+
+Separate rehearsal check for the latest fix: Stop playback in Bedroom's More actions,
+then click the main Play button. It restarts at zero without adding history or
+changing the upcoming queue. Allow for the audio-preparation caveat above.
+
+Ctrl+C demonstrates service termination/recovery. The automated P5 suite separately
+uses forced process kills to test abrupt crashes.
+
+OPTIONAL CHECKS IN A SEVENTH TERMINAL
+curl -s http://127.0.0.1:8080/api/v1/rooms
+curl -s http://127.0.0.1:8090/tracks
+curl -N http://127.0.0.1:8080/api/v1/events
+
+Ctrl+C exits the last streaming command. Inspect the latest room state with:
+curl -s http://127.0.0.1:8080/api/v1/rooms/bedroom
+
+BEFORE LEAVING / IF STARTUP FAILS
+
+Stop all six processes with Ctrl+C in their tabs: players first, then coordinator,
+library and broker. Closing the browser alone does not stop audio/services.
+If a port is already occupied, stop your previous RoomPlay demo; do not kill an
+unidentified process. Never start two Bedroom instances together.
+
+Restart the Bedroom process after changing the system audio output if necessary.
+Build and rehearse on this exact Mac tonight; runtime audio was not tested on a Mac
+in preparing this pack. Verify human audibility yourself on the presentation output.
+After native builds, the demonstration uses only local files/services and does not
+need Internet access. Keep the six Terminals available for visible failure testing.
+
+LICENSE CREDIT
+Lost in a Dream — Eternity Arcade. Wikimedia Commons MP3 derivative, listed CC BY 4.0.
+Retain assets/music/ATTRIBUTION.md and catalog.json with the supplied audio. They
+include source, attribution, transcoding details and the license-verification limits.

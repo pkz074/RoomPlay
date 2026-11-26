@@ -1,0 +1,65 @@
+P5 validation — November 25, 2026
+
+Environment: Windows amd64, Go 1.26.0; 64-bit MSYS2 GCC for race builds.
+The process harness builds module-pinned NATS Server v2.15.3 and the repository
+coordinator, library and player executables. It starts three simulated room players
+on loopback ports, with separate OS processes for all components.
+
+Verified:
+- Registration and independent room state; real HTTP/NATS request/reply and SSE.
+- Queue occurrence add/remove/clear, playback navigation and Stop versus Clear.
+- Stop then Play of the retained selected track restarts at zero without adding
+  history or changing queue/current occurrence. Repeated cycles and delayed old
+  completion callbacks are covered by deterministic tests.
+- Serial and 16 concurrent identical request IDs execute once; conflicting reuse
+  is rejected. Distinct same-room and cross-room requests retain every mutation.
+- A healthy room completes a command while another room waits for a lost reply.
+- Missed SSE state is recovered by an authoritative HTTP snapshot after reconnect.
+- Duplicate player process rejected; retired instance publications ignored.
+- Forced player crash: HTTP 503 NO_RESPONDERS; offline detection about 5.9 seconds.
+  Restart creates a fresh instance with empty in-memory state.
+- Forced coordinator and broker restarts: existing player occurrence/playback
+  survives; registration/state recover; no queued mutation replay.
+- Lost response: one delivery, HTTP 504 COMMAND_TIMEOUT with unknown outcome,
+  no transparent retry. Broker outage: HTTP 503 BROKER_UNAVAILABLE.
+- Actual MP3 delivery; audio path allowlist/traversal rejection; library rejects
+  an unlicensed catalog. Owned child processes stop and release fixtures.
+- Live browser controls, independent rooms, queue add/remove and refresh.
+  Fixed a rendering failure caused by calling String.toUpper instead of toUpperCase.
+
+Passing checks on the final playback code (23481c5):
+go test ./...
+go test -race ./...
+go vet ./...
+go build ./cmd/...
+go vet -tags=process ./tests/integration
+go test -race -tags=broker ./tests/integration -run '^TestBroker' -count=1 -timeout=2m
+ROOMPLAY_PROCESS_RACE=1 with:
+go test -race -tags=process ./tests/integration -run '^TestProcess' -count=1 -timeout=5m
+node --check web/app.js
+node --test web/app.test.js tests/integration/frontend_http.test.js (23 tests)
+
+The race-instrumented process suite passed in 31.59 seconds. Both driver and child
+binaries were instrumented; child logs are checked for race reports. The complete
+player race suite passed in 70.492 seconds; real-broker tests in 27.904 seconds.
+The new process CI job runs this suite and uploads logs and JSON/HTTP evidence.
+CI results on the submitted PR must be checked separately from these local results.
+
+Audio/platform checks:
+- Ordinary CGO_ENABLED=0 Windows builds; optional ROOMPLAY_AUDIO_SMOKE=1 full
+  process suite passed in 36.60 seconds. Real audio device initialized and state
+  advanced through at least three seconds. Human audibility was not confirmed.
+- The full-song preparation exceeded the coordinator's 1.5-second request timeout:
+  HTTP 504 after 1515 ms, then playback started. This remains a known limitation,
+  documented in both runbooks. Prepare/pause before presenting; Resume uses the
+  prepared audio. Do not interpret timeout as proven failure or transparently retry.
+- CGO_ENABLED=0 GOOS=darwin builds of ./cmd/... pass for both arm64 and amd64.
+  Mac runtime audio still requires rehearsal on the target laptop/output.
+
+Limits:
+The two process-test track IDs are labelled copies of the same licensed recording;
+source/license/attribution are retained. This proves independent selection/control,
+not different audible songs. Normal demo catalog has one song. Multi-machine audio,
+multiple physical outputs and synchronization were not tested. Core NATS and the
+in-memory dedup cache do not establish exactly-once execution across player restart
+or cache eviction. See TEST_PLAN.md for reproducible evidence/hold/audio options.

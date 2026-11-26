@@ -2,7 +2,7 @@
 
 A distributed multi-room music player built with Go, featuring independent playback nodes, centralized coordination, and fault-tolerant communication.
 
-> **Status:** Library, player, and coordinator REST/SSE implementations are available. Real-broker tests exercise the HTTP-to-player path and state streams. The full independent-process failure demonstration remains P5.
+> **Status:** Library, player, and coordinator REST/SSE implementations are available. Real-broker and separate-process tests cover three-room playback, crashes, recovery, concurrency and stale messages. Windows audio-backend checks pass; rehearse audible output on the presentation laptop. See the demo runbooks and validation limits below.
 
 ## Architecture
 
@@ -20,6 +20,9 @@ Core NATS carries command request/reply and state/heartbeat events; it never tra
 - [API and NATS contracts](docs/API.md)
 - [Development workflow](docs/DEVELOPMENT.md)
 - [Test plan](docs/TEST_PLAN.md)
+- [MacBook demo commands and audio rehearsal](docs/DEMO_MAC.txt)
+- [Windows demo commands and audio rehearsal](docs/DEMO_WINDOWS.txt)
+- [P5 validation results and known limits](docs/P5_RESULTS.txt)
 - [AI/contributor guide](AGENTS.md) and [role-specific guides](docs/agents/)
 
 ## Development requirements
