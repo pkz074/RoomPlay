@@ -97,7 +97,7 @@ func (b *SimulationBackend) Play(track protocol.Track, positionMs int64) {
 	}
 	b.playing = true
 	b.startedAt = b.clock.Now()
-	b.scheduleCompletionLocked()
+	b.scheduleCompletionLocked(b.onComplete)
 }
 
 func (b *SimulationBackend) Pause() int64 {
@@ -119,7 +119,7 @@ func (b *SimulationBackend) Resume() {
 	}
 	b.playing = true
 	b.startedAt = b.clock.Now()
-	b.scheduleCompletionLocked()
+	b.scheduleCompletionLocked(b.onComplete)
 }
 
 func (b *SimulationBackend) Stop() {
@@ -175,7 +175,7 @@ func (b *SimulationBackend) cancelTimerLocked() {
 	}
 }
 
-func (b *SimulationBackend) scheduleCompletionLocked() {
+func (b *SimulationBackend) scheduleCompletionLocked(callback func()) {
 	if !b.playing || b.track.DurationMs < 0 {
 		return
 	}
@@ -189,24 +189,25 @@ func (b *SimulationBackend) scheduleCompletionLocked() {
 		remainingMs = maxPlaybackTimerMilliseconds
 	}
 	remaining := time.Duration(remainingMs) * time.Millisecond
-	b.timer = b.clock.AfterFunc(remaining, func() { b.complete(generation) })
+	// Bind the notification to this playback, before another command can install
+	// its callback while the old timer is still in flight.
+	b.timer = b.clock.AfterFunc(remaining, func() { b.complete(generation, callback) })
 }
 
-func (b *SimulationBackend) complete(generation uint64) {
+func (b *SimulationBackend) complete(generation uint64, callback func()) {
 	b.mu.Lock()
 	if b.closed || !b.playing || generation != b.generation {
 		b.mu.Unlock()
 		return
 	}
 	if b.positionLocked() < b.track.DurationMs {
-		b.scheduleCompletionLocked()
+		b.scheduleCompletionLocked(callback)
 		b.mu.Unlock()
 		return
 	}
 	b.baseMs = b.track.DurationMs
 	b.playing = false
 	b.timer = nil
-	callback := b.onComplete
 	b.mu.Unlock()
 	if callback != nil {
 		callback()
