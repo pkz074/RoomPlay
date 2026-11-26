@@ -44,21 +44,34 @@ func main() {
 	webPort := flag.Int("web-port", 8080, "browser HTTP port")
 	libraryPort := flag.Int("library-port", 8090, "music library HTTP port")
 	brokerPort := flag.Int("broker-port", 4222, "NATS broker port")
+	catalogPath := flag.String("catalog", "assets/music/catalog.json", "music catalog path (relative to repository or absolute)")
 	flag.Parse()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := run(ctx, *simulation, *noBrowser, *webPort, *libraryPort, *brokerPort); err != nil && !errors.Is(err, context.Canceled) {
+	if err := runWithCatalog(ctx, *simulation, *noBrowser, *webPort, *libraryPort, *brokerPort, *catalogPath); err != nil && !errors.Is(err, context.Canceled) {
 		fmt.Fprintln(os.Stderr, "RoomPlay demo:", err)
 		os.Exit(1)
 	}
 }
 
 func run(ctx context.Context, simulation, noBrowser bool, webPort, libraryPort, brokerPort int) error {
+	return runWithCatalog(ctx, simulation, noBrowser, webPort, libraryPort, brokerPort, "assets/music/catalog.json")
+}
+
+func runWithCatalog(ctx context.Context, simulation, noBrowser bool, webPort, libraryPort, brokerPort int, catalogPath string) error {
 	root, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	for _, path := range []string{"go.mod", "web/index.html", "assets/music/catalog.json"} {
+	if !filepath.IsAbs(catalogPath) {
+		catalogPath = filepath.Join(root, catalogPath)
+	}
+	if info, err := os.Stat(catalogPath); err != nil {
+		return fmt.Errorf("open demo catalog: %w", err)
+	} else if !info.Mode().IsRegular() {
+		return fmt.Errorf("demo catalog must be a regular file")
+	}
+	for _, path := range []string{"go.mod", "web/index.html"} {
 		if _, err := os.Stat(filepath.Join(root, path)); err != nil {
 			return fmt.Errorf("run this command from the RoomPlay repository folder: %w", err)
 		}
@@ -105,7 +118,7 @@ func run(ctx context.Context, simulation, noBrowser bool, webPort, libraryPort, 
 	libraryURL := "http://" + address(libraryPort)
 	base := "http://" + address(webPort)
 	common := map[string]string{"NATS_URL": "nats://" + address(brokerPort), "LIBRARY_URL": libraryURL,
-		"LIBRARY_ADDR": address(libraryPort), "LIBRARY_CATALOG": filepath.Join(root, "assets", "music", "catalog.json"),
+		"LIBRARY_ADDR": address(libraryPort), "LIBRARY_CATALOG": catalogPath,
 		"LIBRARY_AUDIO_ROOT": filepath.Join(root, "assets", "music"), "COORDINATOR_ADDR": address(webPort), "WEB_ROOT": filepath.Join(root, "web")}
 	if err := s.start("broker", s.executable("nats-server"), []string{"-a", "127.0.0.1", "-p", strconv.Itoa(brokerPort)}, common); err != nil {
 		return err
