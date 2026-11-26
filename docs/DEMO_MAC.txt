@@ -11,7 +11,7 @@ checkout. The playback code snapshot is 23481c5; main also contains these runboo
 QUICK START — ONE TERMINAL
 From the repository root, run: go run ./cmd/demo
 It builds/starts all six services in the background and opens the browser.
-Bedroom has real audio; the other rooms are simulated. Ctrl+C stops everything.
+Every room has real audio; playing rooms overlap on the default output. Ctrl+C stops everything.
 The six-window instructions below are the ADVANCED manual alternative for showing
 individual service termination/restarts. They are not required to use the app.
 
@@ -61,13 +61,13 @@ TAB 4 — BEDROOM: REAL AUDIO ON THIS MAC'S DEFAULT OUTPUT
 cd "$HOME/Downloads/RoomPlay-demo"
 ROOM_ID=bedroom ROOM_NAME=Bedroom PLAYER_MODE=audio NATS_URL=nats://127.0.0.1:4222 LIBRARY_URL=http://127.0.0.1:8090 ./.demo-bin/player
 
-TAB 5 — KITCHEN: SIMULATED, SILENT
+TAB 5 — KITCHEN: REAL AUDIO
 cd "$HOME/Downloads/RoomPlay-demo"
-ROOM_ID=kitchen ROOM_NAME=Kitchen PLAYER_MODE=simulation NATS_URL=nats://127.0.0.1:4222 LIBRARY_URL=http://127.0.0.1:8090 ./.demo-bin/player
+ROOM_ID=kitchen ROOM_NAME=Kitchen PLAYER_MODE=audio NATS_URL=nats://127.0.0.1:4222 LIBRARY_URL=http://127.0.0.1:8090 ./.demo-bin/player
 
-TAB 6 — LIVING ROOM: SIMULATED, SILENT
+TAB 6 — LIVING ROOM: REAL AUDIO
 cd "$HOME/Downloads/RoomPlay-demo"
-ROOM_ID=livingroom ROOM_NAME=LivingRoom PLAYER_MODE=simulation NATS_URL=nats://127.0.0.1:4222 LIBRARY_URL=http://127.0.0.1:8090 ./.demo-bin/player
+ROOM_ID=livingroom ROOM_NAME=LivingRoom PLAYER_MODE=audio NATS_URL=nats://127.0.0.1:4222 LIBRARY_URL=http://127.0.0.1:8090 ./.demo-bin/player
 
 OPEN THE CONTROLLER
 Open http://127.0.0.1:8080 in Safari or Chrome. Wait until all three rooms are Online.
@@ -87,14 +87,14 @@ player subsequently entered Playing. A warning says the outcome is unknown.
 Wait a few seconds and refresh room state; do not repeatedly click Play now.
 If it reports AUDIO_ERROR, inspect Bedroom's Terminal and the library's Terminal.
 
-Once you HEAR the song, click Pause. Leave Bedroom paused before the presentation.
+Once you HEAR the song, click Pause. Repeat for Kitchen and Living Room before presenting.
 Begin the live demo using Resume, which uses the already-prepared song. Selecting
 Play now, Next/Previous, or Stop then Play can require audio preparation again.
 Rehearse those separately before choosing to show them live. A timeout does not
 prove that the command failed, and should not be presented as a successful reply.
 
 The normal catalog has ONE song. You can queue it multiple times to demonstrate
-distinct queue occurrences. Kitchen and LivingRoom are intentionally silent.
+distinct queue occurrences. All three rooms can play concurrently on this laptop.
 This setup does not demonstrate three physical speakers or different songs.
 
 SUGGESTED LIVE DEMO — ABOUT THREE MINUTES
@@ -102,8 +102,8 @@ SUGGESTED LIVE DEMO — ABOUT THREE MINUTES
 1. Show three rooms Online. Explain each owns its own current track, queue/history.
 2. Select Bedroom and Resume. Let the audience hear the song for a few seconds.
 3. Add the song to Bedroom's queue twice; remove one entry. Show only one disappears.
-4. Select Kitchen, click Play now and add a queue entry. Bedroom remains audible.
-   Explain Kitchen is simulated here, but is an independent player process.
+4. Select Kitchen, Resume its preloaded song and add a queue entry. Bedroom remains audible.
+   Both rooms should be audible. Pause Kitchen and show Bedroom continues.
 5. Pause/Resume Bedroom. Queue/history are retained and position freezes while paused.
 6. Stop Kitchen using Ctrl+C in TAB 5. Wait about six seconds: Kitchen becomes Offline
    while Bedroom stays audible. In TAB 5, press Up then Enter to rerun its launch
@@ -113,7 +113,7 @@ SUGGESTED LIVE DEMO — ABOUT THREE MINUTES
    to re-register and browser snapshots to recover.
 8. If time permits, repeat Ctrl+C, then Up/Enter in TAB 1 for the broker. Bedroom
    continues playing; controls are unavailable during the outage, then recover.
-9. Finish by pausing Bedroom. Explain control-plane failures do not stop prepared
+9. Finish by pausing every playing room. Explain control-plane failures do not stop prepared
    local audio, but a player's own restart loses its in-memory queue.
 
 Separate rehearsal check for the latest fix: Stop playback in Bedroom's More actions,

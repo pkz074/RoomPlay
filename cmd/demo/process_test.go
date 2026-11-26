@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -81,40 +82,7 @@ func TestProcessDemoLifecycle(t *testing.T) {
 		}
 	}
 	if !simulation {
-		audioClient := &http.Client{Timeout: 10 * time.Second}
-		response, err := audioClient.Post("http://"+address(ports[0])+"/api/v1/rooms/bedroom/commands", "application/json", strings.NewReader(`{"request_id":"demo-audio-check","type":"playback.play","payload":{"track_id":"track-001"}}`))
-		if err != nil {
-			t.Fatal(err)
-		}
-		response.Body.Close()
-		if response.StatusCode != 200 && response.StatusCode != 504 {
-			t.Fatalf("audio Play HTTP %d", response.StatusCode)
-		}
-		played := false
-		end := time.Now().Add(20 * time.Second)
-		for time.Now().Before(end) {
-			response, err := audioClient.Get("http://" + address(ports[0]) + "/api/v1/rooms/bedroom")
-			if err != nil {
-				t.Fatal(err)
-			}
-			var room struct {
-				State struct {
-					Status     string
-					PositionMs int64 `json:"position_ms"`
-				}
-			}
-			err = json.NewDecoder(response.Body).Decode(&room)
-			response.Body.Close()
-			if err == nil && room.State.Status == "playing" && room.State.PositionMs >= 3000 {
-				played = true
-				break
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-		if !played {
-			t.Fatal("Bedroom audio did not advance")
-		}
-		t.Log("Real audio backend advanced for three seconds; human audibility is unconfirmed.")
+		verifyConcurrentAudio(t, "http://"+address(ports[0]))
 	}
 	cancel()
 	select {
@@ -132,4 +100,72 @@ func TestProcessDemoLifecycle(t *testing.T) {
 			t.Fatalf("owned service still listening on %d", port)
 		}
 	}
+}
+
+func verifyConcurrentAudio(t *testing.T, base string) {
+	t.Helper()
+	client := &http.Client{Timeout: 10 * time.Second}
+	rooms := []string{"bedroom", "kitchen", "livingroom"}
+	for _, id := range rooms {
+		body := fmt.Sprintf(`{"request_id":"demo-audio-%s","type":"playback.play","payload":{"track_id":"track-001"}}`, id)
+		response, err := client.Post(base+"/api/v1/rooms/"+id+"/commands", "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		response.Body.Close()
+		if response.StatusCode != 200 && response.StatusCode != 504 {
+			t.Fatalf("%s audio Play HTTP %d", id, response.StatusCode)
+		}
+	}
+	type state struct {
+		Status     string
+		PositionMs int64 `json:"position_ms"`
+	}
+	read := func(id string) state {
+		t.Helper()
+		response, err := client.Get(base + "/api/v1/rooms/" + id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer response.Body.Close()
+		var room struct{ State state }
+		if err := json.NewDecoder(response.Body).Decode(&room); err != nil || response.StatusCode != 200 {
+			t.Fatalf("%s state: HTTP %d, %v", id, response.StatusCode, err)
+		}
+		return room.State
+	}
+	before := map[string]state{}
+	wait := func(name string, check func() bool) {
+		t.Helper()
+		deadline := time.Now().Add(20 * time.Second)
+		for time.Now().Before(deadline) {
+			if check() {
+				return
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		t.Fatal(name)
+	}
+	wait("all three audio players did not advance concurrently", func() bool {
+		playing := true
+		for _, id := range rooms {
+			before[id] = read(id)
+			playing = playing && before[id].Status == "playing" && before[id].PositionMs >= 3000
+		}
+		return playing
+	})
+	response, err := client.Post(base+"/api/v1/rooms/kitchen/commands", "application/json", strings.NewReader(`{"request_id":"pause-kitchen","type":"playback.pause","payload":{}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != 200 {
+		t.Fatalf("pause Kitchen HTTP %d", response.StatusCode)
+	}
+	paused := read("kitchen")
+	wait("pausing Kitchen interrupted another room", func() bool {
+		bed, living, kitchen := read("bedroom"), read("livingroom"), read("kitchen")
+		return kitchen.Status == "paused" && kitchen.PositionMs == paused.PositionMs && bed.Status == "playing" && living.Status == "playing" && bed.PositionMs > before["bedroom"].PositionMs && living.PositionMs > before["livingroom"].PositionMs
+	})
+	t.Log("Three real audio players advanced concurrently; pausing Kitchen left Bedroom and Living Room playing. Human audibility is unconfirmed.")
 }

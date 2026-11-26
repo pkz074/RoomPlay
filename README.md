@@ -25,8 +25,8 @@ go run ./cmd/demo
 
 The launcher builds the services and module-pinned NATS server, starts everything in the background, waits for three online rooms and opens **[http://127.0.0.1:8080](http://127.0.0.1:8080)**. No separate NATS install, Node.js, Docker or additional terminal windows are needed.
 
-- **Bedroom** uses real audio through the laptop's default output.
-- **Kitchen** and **Living Room** run silently in simulation mode.
+- **Bedroom, Kitchen and Living Room all use real audio** through the laptop's default output.
+- Play more than one room to hear overlapping audio; pausing one leaves the others playing.
 - Service logs are saved under `.demo-logs/run-*/`; compiled services go in `.demo-bin/`.
 - Keep this single terminal open. **Ctrl+C stops all six background services.**
 
@@ -44,11 +44,11 @@ go run ./cmd/demo
 2. In the browser, select **Bedroom** and click **Play now** on *Lost in a Dream*.
 3. Confirm you hear the song. The sound comes from the Go player process, not from the browser.
 4. Use Pause/Resume, Add to queue and the queue's remove buttons. The catalog contains one song, which can be queued multiple times as separate occurrences.
-5. Select Kitchen or Living Room to control their independent state; they are intentionally silent in this setup.
+5. Select Kitchen or Living Room and click Play now while Bedroom is still playing. Their audio overlaps on the same speakers. Pause one room to show that the others continue independently.
 
 Under **More actions**, **Stop playback** keeps the selected track, history and queue, and resets position to zero. The main Play button restarts that retained track without adding history. **Clear queue** removes only upcoming items.
 
-**Presentation rehearsal:** preparing the full MP3 can exceed the coordinator's 1.5-second request deadline. The UI may report an unknown outcome before playback starts. Wait a few seconds and refresh state; do not repeatedly click Play. Before presenting, load the song, confirm sound and Pause. Begin the live demo with **Resume**, which uses the prepared audio.
+**Presentation rehearsal:** preparing the full MP3 can exceed the coordinator's 1.5-second request deadline. The UI may report an unknown outcome before playback starts. Wait a few seconds and refresh state; do not repeatedly click Play. Before presenting, load the song, confirm sound and Pause in each room you plan to show. Begin the live demo with **Resume** in those rooms, which uses their prepared audio.
 
 ## Launcher options
 
