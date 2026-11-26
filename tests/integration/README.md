@@ -24,7 +24,11 @@ fanout, heartbeat/token fencing and expiry, coordinator restart, broker
 disconnect/reconnect, malformed registration, and a reply held until after
 the caller's deadline despite successful execution.
 
-These are component/service tests using real broker connections. They do not
-yet exercise coordinator REST/SSE, the full browser/library path or separate
-player processes; those remain P4/P5. The fanout test documents why registry
-tokens alone cannot prevent arbitrary live duplicate command subscribers.
+P4 additionally exercises the real coordinator HTTP routes and SSE stream,
+catalog forwarding, targeted commands while a stale subscriber remains live,
+request timeout/no-responder mapping and stale-event rejection. HTTP requests
+use actual TCP listeners and the actual player/registry services.
+
+These are component/service tests. A real browser and independently launched
+player/coordinator/broker processes remain P5. The fanout test explains why
+every cooperating player must implement P4's approved instance-target checks.

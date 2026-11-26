@@ -229,6 +229,7 @@ func (p *NATSPlayer) register(parent context.Context) {
 	p.registrationCode = ""
 	p.registeredEpoch = epoch
 	p.mu.Unlock()
+	p.publishState(p.processor.Snapshot())
 }
 
 func (p *NATSPlayer) sendHeartbeat() {
@@ -250,32 +251,50 @@ func (p *NATSPlayer) sendHeartbeat() {
 }
 
 func (p *NATSPlayer) handleCommand(message *nats.Msg) {
+	token, registered, code := p.registration()
 	var request protocol.CommandRequest
 	response := protocol.CommandResponse{}
 	if err := decodePlayerEnvelope(message.Data, &request); err != nil {
 		response = errorResponse(request.RequestID, &protocol.APIError{Code: protocol.ErrInvalidPayload, Message: "Malformed command envelope."})
-	} else if _, ok, code := p.registration(); !ok {
+	} else if !p.addressedToUs(request.TargetInstanceID, request.RegistrationToken, token, registered) {
+		return
+	} else if !registered {
 		response = errorResponse(request.RequestID, &protocol.APIError{Code: registrationErrorCode(code), Message: "Player is not registered with the coordinator."})
 	} else {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		response = p.processor.Process(ctx, request)
 		cancel()
 	}
+	response.InstanceID = p.config.InstanceID
+	response.RegistrationToken = token
 	p.respond(message, response)
 }
 
 func (p *NATSPlayer) handleStateQuery(message *nats.Msg) {
+	token, registered, code := p.registration()
 	var query protocol.StateQuery
 	if err := decodePlayerEnvelope(message.Data, &query); err != nil || !protocol.ValidIdentifier(query.RequestID) {
 		p.respond(message, errorResponse(query.RequestID, &protocol.APIError{Code: protocol.ErrInvalidPayload, Message: "Malformed state query."}))
 		return
 	}
-	if _, ok, code := p.registration(); !ok {
+	if !p.addressedToUs(query.TargetInstanceID, query.RegistrationToken, token, registered) {
+		return
+	}
+	if !registered {
 		p.respond(message, errorResponse(query.RequestID, &protocol.APIError{Code: registrationErrorCode(code), Message: "Player is not registered with the coordinator."}))
 		return
 	}
 	state := p.processor.Snapshot()
-	p.respond(message, protocol.CommandResponse{RequestID: query.RequestID, Success: true, State: &state})
+	p.respond(message, protocol.CommandResponse{RequestID: query.RequestID, InstanceID: p.config.InstanceID, RegistrationToken: token, Success: true, State: &state})
+}
+
+// Untargeted requests remain available for local diagnostics. Coordinator
+// traffic always supplies both fields; other instances must remain silent.
+func (p *NATSPlayer) addressedToUs(instance, lease, token string, registered bool) bool {
+	if instance == "" && lease == "" {
+		return true
+	}
+	return registered && instance == p.config.InstanceID && lease == token
 }
 
 func (p *NATSPlayer) publishState(state protocol.PlaybackState) {

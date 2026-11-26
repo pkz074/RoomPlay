@@ -18,6 +18,32 @@ Status: Proposed implementation baseline • API version: v1
 | `roomplay.rooms.{id}.state` | pub/sub | player -> coordinator |
 Only live room IDs registered with coordinator may be used to route commands. Do not use queue groups for addressed room commands.
 
+### P4 instance targeting (approved protocol extension)
+Coordinator command and get_state requests always include `target_instance_id`
+and `registration_token` from the current registration. A player with a different
+instance/token, or without an active registration, silently ignores targeted
+requests. It must neither mutate state nor race the intended player's reply.
+Command/get_state replies include `instance_id` and `registration_token` captured
+when accepting the request; the coordinator verifies both plus `request_id` and
+checks that the registration is still current before returning a result.
+
+For example, a routed command is
+`{"request_id":"cmd-123","target_instance_id":"f7d4a0","registration_token":"lease-456","type":"playback.pause","payload":{}}`.
+A routed query is
+`{"request_id":"read-123","target_instance_id":"f7d4a0","registration_token":"lease-456"}`.
+The reply has the existing command envelope plus
+`"instance_id":"f7d4a0","registration_token":"lease-456"`.
+Untargeted NATS requests remain supported for trusted local diagnostics; the
+coordinator never uses them. Upgrade players and coordinator together: older
+players cannot satisfy the new coordinator's reply identity checks. These leases
+are fencing identifiers, not authentication against malicious publishers.
+
+HTTP mutation successes additionally include `instance_id` (never the lease).
+The browser supplies optional `X-Room-Instance-ID` on mutations; a mismatch with
+the current registration returns SERVICE_UNAVAILABLE/503 and requires refresh.
+Existing HTTP paths and request bodies remain compatible. The browser captures
+the originating instance and rejects delayed replies after that instance changes.
+
 ## Shared structures (wire format)
 ```json
 {
@@ -95,6 +121,16 @@ Publication to `roomplay.rooms.{id}.state`:
 {"room_id":"bedroom","instance_id":"f7d4a0","registration_token":"lease-456","state":{"status":"playing","current":{"id":"item-1","track_id":"track-1"},"position_ms":0,"history":[],"queue":[],"version":1}}
 ```
 Coordinator accepts event only from current registration, and only if its version is newer than the last cached version for that instance. Explicit authoritative state query on recovery refreshes cache. A state event should be emitted on meaningful state changes, including natural track completion.
+
+Players also publish their current snapshot immediately after successful
+registration/renewal. The coordinator schedules bounded authoritative recovery
+queries after replying to registration, without blocking other registrations.
+Authoritative queries can refresh position at the same logical version; neither
+queries nor cached duplicate mutation replies may roll back a newer revision.
+Cached state remains marked stale across expiry/broker loss until refreshed.
+The coordinator connection disables reconnect buffering (`nats.ReconnectBufSize(-1)`)
+so a browser command is not queued for execution after broker recovery. It never
+automatically retries a mutation.
 
 ## HTTP public API
 | Method | URL | Success | Translation |

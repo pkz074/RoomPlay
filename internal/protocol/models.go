@@ -49,9 +49,11 @@ func NewPlaybackState() PlaybackState {
 // CommandRequest is the shared NATS mutation envelope.
 // Payload is decoded according to Type by the player.
 type CommandRequest struct {
-	RequestID string          `json:"request_id"`
-	Type      CommandType     `json:"type"`
-	Payload   json.RawMessage `json:"payload"`
+	TargetInstanceID  string          `json:"target_instance_id,omitempty"`
+	RegistrationToken string          `json:"registration_token,omitempty"`
+	RequestID         string          `json:"request_id"`
+	Type              CommandType     `json:"type"`
+	Payload           json.RawMessage `json:"payload"`
 }
 
 type CommandType string
@@ -83,10 +85,12 @@ type APIError struct {
 }
 
 type CommandResponse struct {
-	RequestID string         `json:"request_id"`
-	Success   bool           `json:"success"`
-	State     *PlaybackState `json:"state"`
-	Error     *APIError      `json:"error"`
+	InstanceID        string         `json:"instance_id,omitempty"`
+	RegistrationToken string         `json:"registration_token,omitempty"`
+	RequestID         string         `json:"request_id"`
+	Success           bool           `json:"success"`
+	State             *PlaybackState `json:"state"`
+	Error             *APIError      `json:"error"`
 }
 
 type HTTPErrorResponse struct {
@@ -96,8 +100,9 @@ type HTTPErrorResponse struct {
 
 // CommandResult is the public HTTP mutation success shape.
 type CommandResult struct {
-	RequestID string        `json:"request_id"`
-	State     PlaybackState `json:"state"`
+	InstanceID string        `json:"instance_id,omitempty"`
+	RequestID  string        `json:"request_id"`
+	State      PlaybackState `json:"state"`
 }
 
 type RegistrationRequest struct {
@@ -121,7 +126,9 @@ type Heartbeat struct {
 }
 
 type StateQuery struct {
-	RequestID string `json:"request_id"`
+	RequestID         string `json:"request_id"`
+	TargetInstanceID  string `json:"target_instance_id,omitempty"`
+	RegistrationToken string `json:"registration_token,omitempty"`
 }
 
 type StateEvent struct {
@@ -139,13 +146,13 @@ const (
 )
 
 type RoomSummary struct {
-	ID          string         `json:"id"`
-	Name        string         `json:"name"`
-	InstanceID  string         `json:"instance_id"`
-	Availability Availability  `json:"availability"`
-	LastSeen    string         `json:"last_seen"`
-	State       *PlaybackState `json:"state"`
-	StateStale  bool           `json:"state_stale"`
+	ID           string         `json:"id"`
+	Name         string         `json:"name"`
+	InstanceID   string         `json:"instance_id"`
+	Availability Availability   `json:"availability"`
+	LastSeen     string         `json:"last_seen"`
+	State        *PlaybackState `json:"state"`
+	StateStale   bool           `json:"state_stale"`
 }
 
 type RoomsResponse struct {

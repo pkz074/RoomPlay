@@ -42,10 +42,12 @@
   }
 
   // Apply a command response to the room that originated the request, not the selected UI room.
-  function applyMutationResult(rooms, roomViews, roomId, result, receivedAt = Date.now()) {
+  function applyMutationResult(rooms, roomViews, roomId, result, receivedAt = Date.now(), expectedInstance) {
     const room = rooms.find((entry) => entry.id === roomId);
     if (!room || !result?.state) return false;
-    const resolved = applyStateSnapshot(room, roomViews.get(roomId), result.state, room.instance_id, false, receivedAt);
+    if (expectedInstance !== undefined && room.instance_id !== expectedInstance) return false;
+    if (result.instance_id && result.instance_id !== room.instance_id) return false;
+    const resolved = applyStateSnapshot(room, roomViews.get(roomId), result.state, result.instance_id || room.instance_id, false, receivedAt);
     if (!resolved) return false;
     Object.assign(room, resolved.room);
     roomViews.set(roomId, resolved.view);
@@ -158,23 +160,24 @@
     this.room = (id) => request(`/api/v1/rooms/${encodeURIComponent(id)}`);
     this.tracks = () => request("/api/v1/tracks");
     this.queue = (id) => request(`/api/v1/rooms/${encodeURIComponent(id)}/queue`);
-    this.command = (id, body, requestId) => request(`/api/v1/rooms/${encodeURIComponent(id)}/commands`, {
+    const instanceHeader = (instanceId) => instanceId ? { "X-Room-Instance-ID": instanceId } : {};
+    this.command = (id, body, requestId, instanceId) => request(`/api/v1/rooms/${encodeURIComponent(id)}/commands`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Request-ID": requestId },
+      headers: { "Content-Type": "application/json", "X-Request-ID": requestId, ...instanceHeader(instanceId) },
       body: JSON.stringify(body)
     });
-    this.queueAdd = (id, body, requestId) => request(`/api/v1/rooms/${encodeURIComponent(id)}/queue`, {
+    this.queueAdd = (id, body, requestId, instanceId) => request(`/api/v1/rooms/${encodeURIComponent(id)}/queue`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Request-ID": requestId },
+      headers: { "Content-Type": "application/json", "X-Request-ID": requestId, ...instanceHeader(instanceId) },
       body: JSON.stringify(body)
     });
-    this.queueRemove = (id, itemId, requestId) => request(`/api/v1/rooms/${encodeURIComponent(id)}/queue/${encodeURIComponent(itemId)}`, {
+    this.queueRemove = (id, itemId, requestId, instanceId) => request(`/api/v1/rooms/${encodeURIComponent(id)}/queue/${encodeURIComponent(itemId)}`, {
       method: "DELETE",
-      headers: { "X-Request-ID": requestId }
+      headers: { "X-Request-ID": requestId, ...instanceHeader(instanceId) }
     });
-    this.queueClear = (id, requestId) => request(`/api/v1/rooms/${encodeURIComponent(id)}/queue`, {
+    this.queueClear = (id, requestId, instanceId) => request(`/api/v1/rooms/${encodeURIComponent(id)}/queue`, {
       method: "DELETE",
-      headers: { "X-Request-ID": requestId }
+      headers: { "X-Request-ID": requestId, ...instanceHeader(instanceId) }
     });
   }
 
@@ -378,7 +381,10 @@
       renderRooms();
       renderPlayer();
       try {
+        const expectedInstance = rooms.find((room) => room.id === roomId)?.instance_id;
         const detail = await api.room(roomId);
+        const activeInstance = rooms.find((room) => room.id === roomId)?.instance_id;
+        if (activeInstance !== expectedInstance && detail.instance_id !== activeInstance) return;
         mergeRoomSummary(detail);
         renderRooms();
         renderPlayer();
@@ -387,11 +393,14 @@
       }
     }
 
+    let snapshotGeneration = 0;
     async function loadInitialSnapshots() {
+      const generation = ++snapshotGeneration;
       dom.connectionBadge.className = "connection-badge";
       dom.connectionBadge.textContent = "Refreshing";
       try {
         const [roomResponse, trackResponse] = await Promise.all([api.rooms(), api.tracks()]);
+        if (generation !== snapshotGeneration) return;
         const received = roomResponse.rooms || [];
         const seen = new Set(received.map((room) => room.id));
         rooms = rooms.filter((room) => seen.has(room.id));
@@ -406,6 +415,7 @@
         dom.connectionBadge.className = "connection-badge live";
         dom.connectionBadge.textContent = "REST connected";
       } catch (error) {
+        if (generation !== snapshotGeneration) return;
         dom.connectionBadge.className = "connection-badge error";
         dom.connectionBadge.textContent = "REST unavailable";
         handleError(error, "Could not load RoomPlay data.");
@@ -439,9 +449,12 @@
       if (pending.size > 0) return;
       pending.add(key);
       setControlsDisabled(true);
+      const expectedInstance = rooms.find((room) => room.id === roomId)?.instance_id;
       try {
         const result = await operation();
-        applyMutationResult(rooms, roomView, roomId, result);
+        if (!applyMutationResult(rooms, roomView, roomId, result, Date.now(), expectedInstance)) {
+          await loadInitialSnapshots();
+        }
         if (successMessage) toast(successMessage, "success");
         renderRooms();
         renderPlayer();
@@ -472,7 +485,7 @@
       const room = requireRoom();
       if (!room) return;
       const requestId = makeRequestId();
-      runMutation(`command:${room.id}:${requestId}`, room.id, () => api.command(room.id, { request_id: requestId, type, payload }, requestId));
+      runMutation(`command:${room.id}:${requestId}`, room.id, () => api.command(room.id, { request_id: requestId, type, payload }, requestId, room.instance_id));
     }
 
     function playTrack(trackId) {
@@ -483,14 +496,14 @@
       const room = requireRoom();
       if (!room) return;
       const requestId = makeRequestId();
-      runMutation(`queue-add:${room.id}:${requestId}`, room.id, () => api.queueAdd(room.id, { track_id: trackId }, requestId), "Added to queue.");
+      runMutation(`queue-add:${room.id}:${requestId}`, room.id, () => api.queueAdd(room.id, { track_id: trackId }, requestId, room.instance_id), "Added to queue.");
     }
 
     function removeQueueItem(itemId) {
       const room = requireRoom();
       if (!room) return;
       const requestId = makeRequestId();
-      runMutation(`queue-remove:${room.id}:${requestId}`, room.id, () => api.queueRemove(room.id, itemId, requestId), "Queue item removed.");
+      runMutation(`queue-remove:${room.id}:${requestId}`, room.id, () => api.queueRemove(room.id, itemId, requestId, room.instance_id), "Queue item removed.");
     }
 
     function handlePrimaryControl() {
@@ -515,7 +528,7 @@
       const room = requireRoom();
       if (!room) return;
       const requestId = makeRequestId();
-      runMutation(`queue-clear:${room.id}:${requestId}`, room.id, () => api.queueClear(room.id, requestId), "Queue cleared.");
+      runMutation(`queue-clear:${room.id}:${requestId}`, room.id, () => api.queueClear(room.id, requestId, room.instance_id), "Queue cleared.");
     });
     dom.refreshRooms.addEventListener("click", loadInitialSnapshots);
 
@@ -564,6 +577,7 @@
         if (!room) return;
         room.availability = payload.availability;
         if (payload.availability === "offline") room.state_stale = true;
+        if (payload.availability === "online") loadInitialSnapshots();
         renderRooms();
         renderPlayer();
       });

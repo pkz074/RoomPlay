@@ -25,17 +25,21 @@ observed. Reply identity checks can detect some conflicts only after execution;
 they cannot undo duplicate mutations. Do not enable ambiguous command routing on
 the assumption that registration tokens or first-reply selection prevent it.
 
-## Proposed solution (needs João's approval: touches the API contract)
-1. Add `instance_id` to every command/get_state reply.
-2. The coordinator checks that the reply's `instance_id` equals the registered one.
-   A mismatch marks the room CONFLICTED: commands are refused with a 409/503 error
-   instead of being routed, and the event is logged/published.
-3. On every registration or renewal, the coordinator sends a `get_state` probe.
-   A different instance answering reveals a duplicate quickly.
-4. Players should exit if they receive a registration rejection (DUPLICATE_ROOM_ID).
-5. Ambiguous routing stays blocked until the duplicate is shut down.
+## P4 approved instance-targeting implementation
+Commands and queries carry the current target instance and registration token.
+A mismatched player ignores them before execution and does not respond. Replies
+carry their accepting instance and token, which the coordinator verifies against
+both the request and the current registry. Unexpected replies or a registration
+change return SERVICE_UNAVAILABLE/503, requiring a fresh snapshot. No new request
+ID is generated for retry. See API.md for the exact fields.
+
+The coordinator also queries state after registration/renewal, and players publish
+their current snapshot after accepting a lease. Broker-backed HTTP tests keep an
+old and a replacement player subscribed simultaneously and verify that only the
+targeted instance mutates. This supersedes the earlier reply-only proposal, which
+could detect conflicts after a duplicate mutation but could not prevent them.
 
 ## Limits
-Detection is by observation: a hidden duplicate that never receives a request stays
-invisible until it does. Full prevention would need per-instance command subjects or
-broker-side permissions, which are out of scope for the MVP.
+This relies on players implementing the approved target checks. Arbitrary legacy
+or malicious subscribers require shutdown or broker permissions. Tokens are not
+credentials; authentication for untrusted networks remains outside the MVP.

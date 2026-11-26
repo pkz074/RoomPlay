@@ -60,7 +60,7 @@ func startTestBroker(t *testing.T, port int) *server.Server {
 
 func brokerConnect(t *testing.T, url string, options ...nats.Option) *nats.Conn {
 	t.Helper()
-	options = append([]nats.Option{nats.Timeout(time.Second), nats.MaxReconnects(-1), nats.ReconnectWait(20 * time.Millisecond), nats.DrainTimeout(time.Second)}, options...)
+	options = append([]nats.Option{nats.Timeout(time.Second), nats.MaxReconnects(-1), nats.ReconnectBufSize(-1), nats.ReconnectWait(20 * time.Millisecond), nats.DrainTimeout(time.Second)}, options...)
 	nc, err := nats.Connect(url, options...)
 	if err != nil {
 		t.Fatal(err)
@@ -74,6 +74,7 @@ func brokerCoordinator(t *testing.T, url string, options ...nats.Option) (*coord
 	nc := brokerConnect(t, url, options...)
 	reg := coordinator.NewRegistry(nil, nil)
 	svc := coordinator.NewService(nc, reg, log.New(io.Discard, "", 0))
+	t.Cleanup(func() { _ = svc.Stop() })
 	if err := svc.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -249,6 +250,15 @@ func TestBrokerCommandsQueriesStateAndDeduplication(t *testing.T) {
 	if err := json.Unmarshal(message.Data, &event); err != nil {
 		t.Fatal(err)
 	}
+	for event.State.Version < first.State.Version {
+		message, err = events.NextMsg(time.Second)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(message.Data, &event); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if event.InstanceID != "i1" || event.RegistrationToken != registration.RegistrationToken || event.State.Version != first.State.Version {
 		t.Fatalf("state event: %+v", event)
 	}
@@ -352,6 +362,7 @@ func TestBrokerRegistrationHeartbeatFencingAndExpiry(t *testing.T) {
 	reg := coordinator.NewRegistry(clock, nil)
 	logs := make(brokerLog, 8)
 	svc := coordinator.NewService(coordinatorConn, reg, log.New(logs, "", 0))
+	t.Cleanup(func() { _ = svc.Stop() })
 	if err := svc.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -472,6 +483,7 @@ func TestBrokerDuplicateRejectionOnRenewalExits(t *testing.T) {
 	reg := coordinator.NewRegistry(nil, nil)
 	reg.Register(protocol.RegistrationRequest{RoomID: "bedroom", Name: "Bedroom", InstanceID: "i2"})
 	svc := coordinator.NewService(brokerConnect(t, s.ClientURL()), reg, log.New(io.Discard, "", 0))
+	t.Cleanup(func() { _ = svc.Stop() })
 	if err := svc.Start(); err != nil {
 		t.Fatal(err)
 	}
