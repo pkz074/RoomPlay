@@ -40,6 +40,82 @@ test("browser startup renders stopped and playing rooms, catalog and queue witho
   }
 });
 
+for (const refresh of [false, true]) {
+  test(`queue removal remains clickable after ${refresh ? "snapshot refresh" : "room selection"}`, async () => {
+    const elements = new Map();
+    let generation = 0;
+    const element = (id) => {
+      if (!elements.has(id)) {
+        const node = {
+          html: "", textContent: "", dataset: {}, handlers: {}, children: [], buttons: [],
+          addEventListener(type, handler) { (this.handlers[type] ||= []).push(handler); },
+          setAttribute() {}, appendChild(child) { this.children.push(child); },
+          querySelector() { return null; },
+          querySelectorAll(selector) {
+            return this.buttons.filter(button => selector === "[data-room-id]" ? button.dataset.roomId : selector === "[data-item-id]" ? button.dataset.itemId : false);
+          },
+          click() { for (const handler of this.handlers.click || []) handler(); }
+        };
+        Object.defineProperty(node, "innerHTML", {
+          get() { return this.html; },
+          set(html) {
+            this.html = html;
+            // Replacing innerHTML creates new buttons and discards old listeners.
+            this.buttons = [...html.matchAll(/data-(room|item)-id="([^"]+)"/g)].map((match, i) => {
+              const button = element(`${id}-render-${++generation}-${i}`);
+              button.dataset[match[1] === "room" ? "roomId" : "itemId"] = match[2];
+              return button;
+            });
+          }
+        });
+        elements.set(id, node);
+      }
+      return elements.get(id);
+    };
+    const rooms = ["bedroom", "kitchen"].map(id => ({ id, name: id, instance_id: `${id}-instance`, availability: "online", state_stale: false,
+      state: { status: "stopped", current: null, position_ms: 0, history: [], queue: [{ id: `${id}-item`, track_id: "t1" }], version: 1 } }));
+    const deletes = [];
+    const context = vm.createContext({
+      URLSearchParams, Date, setInterval() {}, setTimeout() {},
+      document: { readyState: "complete", getElementById: element, createElement: () => element("toast"),
+        querySelectorAll: selector => element("queueList").querySelectorAll(selector) },
+      fetch: async (url, options = {}) => {
+        let result;
+        if (url.endsWith("/tracks")) result = { tracks: [{ id: "t1", title: "Track", artist: "Artist", duration_ms: 10000 }] };
+        else if (url.endsWith("/rooms")) result = { rooms };
+        else {
+          const match = url.match(/\/rooms\/(bedroom|kitchen)(?:\/queue\/([^/]+))?$/);
+          assert.ok(match, `unexpected request: ${url}`);
+          const room = rooms.find(room => room.id === match[1]);
+          if (options.method === "DELETE") {
+            deletes.push({ url, options });
+            room.state.queue = room.state.queue.filter(item => item.id !== match[2]);
+            room.state.version++;
+            result = { request_id: options.headers["X-Request-ID"], instance_id: room.instance_id, state: room.state };
+          } else result = room;
+        }
+        return { ok: true, text: async () => JSON.stringify(result) };
+      }
+    });
+    vm.runInContext(readFileSync(require.resolve("./app.js"), "utf8"), context);
+    await new Promise(setImmediate);
+    const selected = refresh ? "bedroom" : "kitchen";
+    if (refresh) element("refreshRooms").click();
+    else element("roomList").buttons.find(button => button.dataset.roomId === selected).click();
+    await new Promise(setImmediate);
+    const button = element("queueList").buttons[0];
+    assert.equal(button.dataset.itemId, `${selected}-item`);
+    assert.equal(button.handlers.click?.length, 1, "the freshly rendered Remove button needs exactly one handler");
+    button.click();
+    await new Promise(setImmediate);
+    assert.equal(deletes.length, 1);
+    assert.equal(deletes[0].url, `/api/v1/rooms/${selected}/queue/${selected}-item`);
+    assert.equal(deletes[0].options.headers["X-Room-Instance-ID"], `${selected}-instance`);
+    assert.match(element("queueList").innerHTML, /Queue is empty/);
+    assert.equal(rooms.find(room => room.id !== selected).state.queue.length, 1);
+  });
+}
+
 test("formatDuration handles positive and negative durations", () => {
   assert.equal(formatDuration(220000), "3:40");
   assert.equal(formatDuration(-100), "0:00");
