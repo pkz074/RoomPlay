@@ -20,6 +20,15 @@ func TestDemoHelperProcess(t *testing.T) {
 	}
 }
 
+func TestDemoRejectsUnavailableCatalogBeforeStartingServices(t *testing.T) {
+	for _, path := range []string{filepath.Join(t.TempDir(), "missing.json"), t.TempDir()} {
+		err := runWithCatalog(context.Background(), true, true, 0, 0, 0, path)
+		if err == nil || !strings.Contains(err.Error(), "catalog") {
+			t.Fatalf("expected catalog error before port checks or builds, got %v", err)
+		}
+	}
+}
+
 func testSupervisor(t *testing.T) *supervisor {
 	t.Helper()
 	root := t.TempDir()

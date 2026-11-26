@@ -165,6 +165,8 @@ main {
 .track-card { border: 1px solid var(--line); border-radius: 11px; background: var(--panel-2); padding: 10px; }
 .track-card h3 { margin: 0 0 2px; font-size: 15px; }
 .track-card p { margin: 0; color: var(--muted); font-size: 12px; }
+.track-card .track-credit { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.track-credit a { color: var(--accent); }
 .track-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 10px; }
 .track-actions button { min-height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); font-size: 12px; }
 .track-actions button:first-child { border-color: var(--accent); color: var(--accent); }

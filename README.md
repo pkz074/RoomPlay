@@ -40,6 +40,10 @@ go run ./cmd/demo
 
 ## Play the song
 
+For the separate presentation branch's optional three-song catalog, see
+[extra demo songs](docs/DEMO_EXTRA_SONGS.md). The additional MP3s stay local and
+are not included in GitHub. The default launch below retains the submitted catalog.
+
 1. Choose your presentation audio output and set its volume before starting the launcher.
 2. In the browser, select **Bedroom** and click **Play now** on *Lost in a Dream*.
 3. Confirm you hear the song. The sound comes from the Go player process, not from the browser.

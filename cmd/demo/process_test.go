@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,24 @@ import (
 // Exercise the same entry point as `go run ./cmd/demo`, including real builds,
 // all six background services, readiness and cancellation cleanup.
 func TestProcessDemoLifecycle(t *testing.T) {
+	testProcessDemoLifecycle(t, "")
+}
+
+func TestProcessDemoCustomCatalog(t *testing.T) {
+	data, err := os.ReadFile("../../assets/music/catalog.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "custom-catalog.json")
+	data = []byte(strings.ReplaceAll(string(data), "Lost in a Dream", "Custom catalog selected"))
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	testProcessDemoLifecycle(t, path)
+}
+
+func testProcessDemoLifecycle(t *testing.T, catalogPath string) {
+	t.Helper()
 	t.Chdir("../..")
 	ports := []int{}
 	for len(ports) < 3 {
@@ -39,7 +58,14 @@ func TestProcessDemoLifecycle(t *testing.T) {
 	finished := make(chan struct{})
 	var runError error
 	simulation := os.Getenv("ROOMPLAY_DEMO_AUDIO_TEST") != "1"
-	go func() { runError = run(ctx, simulation, true, ports[0], ports[1], ports[2]); close(finished) }()
+	go func() {
+		if catalogPath == "" {
+			runError = run(ctx, simulation, true, ports[0], ports[1], ports[2])
+		} else {
+			runError = runWithCatalog(ctx, simulation, true, ports[0], ports[1], ports[2], catalogPath)
+		}
+		close(finished)
+	}()
 	t.Cleanup(func() {
 		cancel()
 		select {
@@ -79,6 +105,18 @@ func TestProcessDemoLifecycle(t *testing.T) {
 		}
 		if response.StatusCode == 200 && decodeError == nil && fresh {
 			break
+		}
+	}
+	if catalogPath != "" {
+		response, err := client.Get("http://" + address(ports[0]) + "/api/v1/tracks")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var catalog struct{ Tracks []struct{ Title string } }
+		err = json.NewDecoder(response.Body).Decode(&catalog)
+		response.Body.Close()
+		if err != nil || response.StatusCode != 200 || len(catalog.Tracks) != 1 || catalog.Tracks[0].Title != "Custom catalog selected" {
+			t.Fatalf("custom catalog not served: HTTP %d, %+v, %v", response.StatusCode, catalog, err)
 		}
 	}
 	if !simulation {

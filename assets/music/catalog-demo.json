@@ -1,0 +1,37 @@
+{
+  "tracks": [
+    {
+      "id": "track-001",
+      "title": "Lost in a Dream",
+      "artist": "Eternity Arcade",
+      "duration_ms": 220000,
+      "audio_file": "Eternity_Arcade_-_Lost_in_a_Dream_(vocal_retro_pop_music_made_with_AI).mp3",
+      "source": "https://commons.wikimedia.org/wiki/File:Eternity_Arcade_-_Lost_in_a_Dream_(vocal_retro_pop_music_made_with_AI).opus",
+      "license": "Creative Commons Attribution 4.0 International",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "attribution": "Lost in a Dream by Eternity Arcade (https://www.youtube.com/watch?v=uUWWPk69JWs). Audio extracted and transcoded to OPUS/MP3 via Wikimedia Commons; CC BY 4.0 per Commons: https://creativecommons.org/licenses/by/4.0/. See ATTRIBUTION.md for source, changes and pending verification details. No endorsement implied."
+    },
+    {
+      "id": "track-bensound-loveofthesun",
+      "title": "Love of the Sun",
+      "artist": "Indie Box",
+      "duration_ms": 163134,
+      "audio_file": "bensound-loveofthesun.mp3",
+      "source": "https://www.bensound.com/",
+      "license": "Bensound user-supplied license; local demo asset only",
+      "license_url": "https://www.bensound.com/terms-and-conditions",
+      "attribution": "Royalty Free Music: Bensound.com | License code: OAQUIDWZLYJYUWUW | Artist: Indie Box"
+    },
+    {
+      "id": "track-liborio-i-believe",
+      "title": "I Believe",
+      "artist": "Liborio Conti",
+      "duration_ms": 313338,
+      "audio_file": "Emotional-Piano-Free-Royalty-Free-Relaxing-Music-by-Liborio-Conti-01-I-Believe.mp3",
+      "source": "https://www.no-copyright-music.com/",
+      "license": "Liborio Conti royalty-free license; local demo asset only",
+      "license_url": "https://www.no-copyright-music.com/wp-content/uploads/2023/03/LiborioContiLicense.pdf",
+      "attribution": "Attribution not required by the publisher; I Believe by Liborio Conti. Local user-supplied audio; not redistributed."
+    }
+  ]
+}

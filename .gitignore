@@ -32,6 +32,10 @@ go.work.sum
 .demo-bin/
 .demo-logs/
 
+# Optional locally supplied demo songs (not licensed for repository redistribution)
+/assets/music/bensound-loveofthesun.mp3
+/assets/music/Emotional-Piano-Free-Royalty-Free-Relaxing-Music-by-Liborio-Conti-01-I-Believe.mp3
+
 # Editor/IDE
 # .idea/
 # .vscode/

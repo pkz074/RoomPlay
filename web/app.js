@@ -373,6 +373,7 @@
       dom.trackList.innerHTML = tracks.length ? tracks.map((track) => `<article class="track-card">
         <h3>${escapeHtml(track.title)}</h3>
         <p>${escapeHtml(track.artist)} · ${formatDuration(track.duration_ms)}</p>
+        ${track.id === "track-bensound-loveofthesun" ? '<p class="track-credit">Royalty Free Music: <a href="https://www.bensound.com/" target="_blank" rel="noopener noreferrer">Bensound.com</a><br>License code: OAQUIDWZLYJYUWUW<br>Artist: Indie Box</p>' : ""}
         <div class="track-actions">
           <button type="button" data-play-track="${escapeHtml(track.id)}">Play now</button>
           <button type="button" data-add-track="${escapeHtml(track.id)}">Add to queue</button>
