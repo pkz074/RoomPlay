@@ -39,7 +39,7 @@ type supervisor struct {
 }
 
 func main() {
-	simulation := flag.Bool("simulation", false, "run Bedroom silently instead of using the audio device")
+	simulation := flag.Bool("simulation", false, "run every room silently instead of using audio devices")
 	noBrowser := flag.Bool("no-browser", false, "print the URL without opening a browser")
 	webPort := flag.Int("web-port", 8080, "browser HTTP port")
 	libraryPort := flag.Int("library-port", 8090, "music library HTTP port")
@@ -145,7 +145,7 @@ func run(ctx context.Context, simulation, noBrowser bool, webPort, libraryPort, 
 		settings["ROOM_ID"] = room
 		settings["ROOM_NAME"] = map[string]string{"bedroom": "Bedroom", "kitchen": "Kitchen", "livingroom": "Living Room"}[room]
 		settings["PLAYER_MODE"] = "simulation"
-		if room == "bedroom" && !simulation {
+		if !simulation {
 			settings["PLAYER_MODE"] = "audio"
 		}
 		if err := s.start(room, s.executable("player"), nil, settings); err != nil {
@@ -180,7 +180,7 @@ func run(ctx context.Context, simulation, noBrowser bool, webPort, libraryPort, 
 	if simulation {
 		fmt.Println("All rooms are simulated (silent).")
 	} else {
-		fmt.Println("Bedroom has audio; Kitchen and Living Room are simulated. Select Bedroom, then Play now.")
+		fmt.Println("Every room has audio. Select any room and Play now; playing rooms overlap on the default output.")
 	}
 	fmt.Println("Keep this terminal open. Press Ctrl+C to stop all six services.")
 	if !noBrowser {

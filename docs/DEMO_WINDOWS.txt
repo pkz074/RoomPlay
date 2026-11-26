@@ -16,7 +16,7 @@ original PowerShell window before following this guide on the same laptop.
 QUICK START — ONE TERMINAL
 From the repository root, run: go run ./cmd/demo
 It builds/starts all six services in the background and opens the browser.
-Bedroom has real audio; the other rooms are simulated. Ctrl+C stops everything.
+Every room has real audio; playing rooms overlap on the default output. Ctrl+C stops everything.
 The six-window instructions below are the ADVANCED manual alternative for showing
 individual service termination/restarts. They are not required to use the app.
 
@@ -74,20 +74,20 @@ $env:NATS_URL = 'nats://127.0.0.1:4222'
 $env:LIBRARY_URL = 'http://127.0.0.1:8090'
 .\.demo-bin\player.exe
 
-WINDOW 5 — KITCHEN: SIMULATED, SILENT
+WINDOW 5 — KITCHEN: REAL AUDIO
 Set-Location "$env:USERPROFILE\Downloads\RoomPlay-demo"
 $env:ROOM_ID = 'kitchen'
 $env:ROOM_NAME = 'Kitchen'
-$env:PLAYER_MODE = 'simulation'
+$env:PLAYER_MODE = 'audio'
 $env:NATS_URL = 'nats://127.0.0.1:4222'
 $env:LIBRARY_URL = 'http://127.0.0.1:8090'
 .\.demo-bin\player.exe
 
-WINDOW 6 — LIVING ROOM: SIMULATED, SILENT
+WINDOW 6 — LIVING ROOM: REAL AUDIO
 Set-Location "$env:USERPROFILE\Downloads\RoomPlay-demo"
 $env:ROOM_ID = 'livingroom'
 $env:ROOM_NAME = 'LivingRoom'
-$env:PLAYER_MODE = 'simulation'
+$env:PLAYER_MODE = 'audio'
 $env:NATS_URL = 'nats://127.0.0.1:4222'
 $env:LIBRARY_URL = 'http://127.0.0.1:8090'
 .\.demo-bin\player.exe
@@ -109,13 +109,14 @@ audio check. The API returned 504 COMMAND_TIMEOUT with outcome unknown, but play
 subsequently started. If this happens, wait a few seconds and refresh state; do not
 keep clicking Play now. AUDIO_ERROR requires checking Bedroom/library console output.
 
-Once you HEAR the song, Pause it before presenting. Begin the live demo with Resume,
+Once you HEAR the song, Pause it. Repeat for Kitchen and Living Room before presenting.
+Begin the live demo with Resume,
 which uses the already-prepared audio. Play now, Next/Previous and Stop then Play
 can require audio preparation again; rehearse them separately. A timeout remains
 an unknown outcome, not a confirmed success or failure.
 
-Only Bedroom is audible; Kitchen and LivingRoom demonstrate independent simulated
-players. The normal catalog has one song, which can be queued multiple times.
+All three rooms are audible and can overlap on the same output. Pause one room
+to show the others continue. The catalog has one song, which can be queued repeatedly.
 This is not a demonstration of multiple physical speakers or different songs.
 
 SUGGESTED LIVE DEMO — ABOUT THREE MINUTES
@@ -123,7 +124,7 @@ SUGGESTED LIVE DEMO — ABOUT THREE MINUTES
 1. Show the three Online rooms; explain each owns its state/history/queue.
 2. Resume Bedroom and let the audience hear a few seconds.
 3. Add the song twice to Bedroom's queue; remove one occurrence. Only one disappears.
-4. Select Kitchen, click Play now and add a queue entry. Bedroom remains audible.
+4. Select Kitchen, Resume its preloaded song and add a queue entry. Bedroom remains audible.
 5. Pause/Resume Bedroom to show position freezing and preserved state.
 6. Ctrl+C in WINDOW 5 stops Kitchen. After about six seconds it is Offline while
    Bedroom continues. Up, Enter in WINDOW 5 repeats .\.demo-bin\player.exe using
@@ -132,7 +133,7 @@ SUGGESTED LIVE DEMO — ABOUT THREE MINUTES
    restarts it. Wait a few seconds for room registration and browser recovery.
 8. If time permits, Ctrl+C then Up/Enter in WINDOW 1 restarts the broker. Audio
    continues while controls are unavailable; control recovers afterward.
-9. Finish by pausing Bedroom. Explain the difference between control-plane recovery
+9. Finish by pausing every playing room. Explain the difference between control-plane recovery
    and a player's own restart, which loses its in-memory queue.
 
 Separate rehearsal check for the latest change: More actions -> Stop playback,

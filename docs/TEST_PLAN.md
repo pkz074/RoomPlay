@@ -119,6 +119,6 @@ not establish human audibility or playback on multiple machines/outputs.
 The launcher lifecycle test in `cmd/demo` exercises the same entry point as
 `go run ./cmd/demo`: real service builds, six child processes, three fresh rooms,
 cancellation cleanup and closed listener ports. It runs silently in CI. Optional
-`ROOMPLAY_DEMO_AUDIO_TEST=1` enables a local Bedroom audio check for that test;
+`ROOMPLAY_DEMO_AUDIO_TEST=1` enables real audio in all three rooms and verifies concurrent playback and independent pause for that test;
 it is disabled in CI. Unit tests also cover child-exit reporting during readiness
 and idempotent cleanup of every owned child process.
