@@ -42,7 +42,7 @@ type audioOutputPlayer interface {
 }
 
 type otoAudioOutput struct {
-	context oto.Context
+	context *oto.Context
 }
 
 func (o otoAudioOutput) NewPlayer(source io.Reader) audioOutputPlayer {
