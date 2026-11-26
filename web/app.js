@@ -90,7 +90,11 @@
       if (!current || current.availability !== "online") throw { code: "ROOM_OFFLINE", message: `${current?.name || id} is unavailable.`, requestId };
       current.state = current.state || { status: "stopped", current: null, position_ms: 0, history: [], queue: [], version: 0 };
       current.state.version += 1;
-      if (body.type === "playback.play") current.state = { ...current.state, status: "playing", current: { id: `item-${Date.now()}`, track_id: body.payload.track_id }, position_ms: 0 };
+      if (body.type === "playback.play") {
+        const restart = current.state.status === "stopped" && current.state.current?.track_id === body.payload.track_id;
+        if (!restart && current.state.current) current.state.history.push(current.state.current);
+        current.state = { ...current.state, status: "playing", current: restart ? current.state.current : { id: `item-${makeRequestId()}`, track_id: body.payload.track_id }, position_ms: 0 };
+      }
       if (body.type === "playback.pause") current.state.status = "paused";
       if (body.type === "playback.resume") current.state.status = "playing";
       if (body.type === "playback.stop") current.state = { ...current.state, status: "stopped", position_ms: 0 };

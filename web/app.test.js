@@ -45,6 +45,17 @@ test("formatDuration handles positive and negative durations", () => {
   assert.equal(formatDuration(-100), "0:00");
 });
 
+test("MockApi Stop then Play retains the selected occurrence, history and queue", async () => {
+  const api = new MockApi();
+  await api.queueAdd("bedroom", {track_id:"track-001"}, "add");
+  for (let i=0;i<3;i++) {
+    const stopped = await api.command("bedroom",{type:"playback.stop",payload:{}},`stop-${i}`);
+    const before = structuredClone(stopped.state);
+    const restarted = await api.command("bedroom",{type:"playback.play",payload:{track_id:"track-001"}},`play-${i}`);
+    assert.deepEqual(restarted.state,{...before,status:"playing",position_ms:0,version:before.version+1});
+  }
+});
+
 test("statePosition advances only while playing", () => {
   const now = Date.now();
   assert.equal(statePosition({ status: "paused", position_ms: 45000 }, now - 5000), 45000);

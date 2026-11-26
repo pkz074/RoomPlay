@@ -73,7 +73,7 @@ Always provide `payload` as an object (`{}` if empty). Reject missing or invalid
 
 | Type | Required payload | Effect |
 | --- | --- | --- |
-| `playback.play` | `{"track_id":"..."}` | Select/play track from 0, preserve upcoming |
+| `playback.play` | `{"track_id":"..."}` | From stopped with same current track: restart retained occurrence at 0, preserve history/upcoming. Otherwise select a new occurrence from 0, archive previous current, preserve upcoming. |
 | `playback.pause` | `{}` | Freeze position |
 | `playback.resume` | `{}` | Resume paused position |
 | `playback.stop` | `{}` | Stop; keep current/history/queue; position 0 |

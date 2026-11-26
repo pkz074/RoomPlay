@@ -59,7 +59,7 @@ Start one NATS server, one library server, one coordinator, and 2–3 player pro
 
 ## Playback state and navigation
 Player owns a `PlaybackState`: status (stopped|playing|paused), `current` (nullable QueueItem), `position_ms`, history (oldest first), queue (next first), version (increases on logical mutations), and instance_id supplied with published snapshots. QueueItem has unique occurrence ID + track ID, including for directly selected tracks, so a song can occur multiple times.
-- `playback.play(track_id)`: select new occurrence, push previous current to history, preserve upcoming, start at 0.
+- `playback.play(track_id)`: when stopped with the same selected track, restart the retained occurrence at 0 without changing history or upcoming. Otherwise select a new occurrence, push previous current to history, preserve upcoming, start at 0.
 - `playback.pause`: freeze current position; repeat pause is no-op; stopped is INVALID_STATE.
 - `playback.resume`: resume paused current; repeat while playing is no-op; stopped is INVALID_STATE.
 - `playback.stop`: keep selected current/history and upcoming, reset position to 0, set stopped; stopped is no-op.

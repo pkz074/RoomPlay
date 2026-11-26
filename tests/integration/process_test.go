@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync/atomic"
@@ -516,7 +517,17 @@ func TestProcessDistributedLifecycle(t *testing.T) {
 	if previous.State.Current.ID != bed.State.Current.ID || again.State.Current.ID != next.State.Current.ID {
 		t.Fatal("previous/next did not preserve occurrences")
 	}
+	r.mutation("POST", "/api/v1/rooms/bedroom/queue", `{"track_id":"track-a"}`, "")
 	stopped := r.command("bedroom", protocol.PlaybackStop, `{}`)
+	restarted := r.command("bedroom", protocol.PlaybackPlay, `{"track_id":"track-b"}`)
+	if restarted.State.Status != protocol.StatusPlaying || restarted.State.PositionMs != 0 ||
+		!reflect.DeepEqual(restarted.State.Current, stopped.State.Current) ||
+		!reflect.DeepEqual(restarted.State.History, stopped.State.History) ||
+		!reflect.DeepEqual(restarted.State.Queue, stopped.State.Queue) || restarted.State.Version != stopped.State.Version+1 {
+		t.Fatal("Stop then Play changed the retained occurrence, history or queue")
+	}
+	r.note("stop then play restarts retained occurrence without adding history", restarted)
+	stopped = r.command("bedroom", protocol.PlaybackStop, `{}`)
 	cleared := r.mutation("DELETE", "/api/v1/rooms/bedroom/queue", "", "")
 	if stopped.State.PositionMs != 0 || cleared.State.Current.ID != stopped.State.Current.ID || len(cleared.State.History) != len(stopped.State.History) {
 		t.Fatal("stop/clear damaged current or history")

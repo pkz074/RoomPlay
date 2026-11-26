@@ -13,6 +13,41 @@ import (
 	"github.com/pkz074/RoomPlay/internal/protocol"
 )
 
+func TestStopThenPlayRestartsBackendAndFencesOldCompletion(t *testing.T) {
+	clock := newFakePlaybackClock()
+	backend := newSimulationBackend(clock)
+	p := NewCommandProcessor(testTrackIndex(), backend)
+	t.Cleanup(func() { p.Close() })
+	process := func(id string, kind protocol.CommandType, payload string) protocol.PlaybackState {
+		t.Helper()
+		result := p.Process(context.Background(), commandRequest(id, kind, payload))
+		if !result.Success || result.State == nil {
+			t.Fatalf("command failed: %+v", result)
+		}
+		return *result.State
+	}
+	process("play", protocol.PlaybackPlay, `{"track_id":"a"}`)
+	process("queue", protocol.QueueAdd, `{"track_id":"b"}`)
+	oldCompletion := backend.onComplete
+	clock.Advance(100 * time.Millisecond)
+	stopped := process("stop", protocol.PlaybackStop, `{}`)
+	restarted := process("restart", protocol.PlaybackPlay, `{"track_id":"a"}`)
+	want := cloneState(stopped)
+	want.Status = protocol.StatusPlaying
+	want.Version++
+	if !reflect.DeepEqual(restarted, want) {
+		t.Fatalf("restart changed retained state: %+v", restarted)
+	}
+	oldCompletion()
+	if !reflect.DeepEqual(p.Snapshot(), restarted) {
+		t.Fatal("old completion advanced the retained occurrence")
+	}
+	clock.Advance(100 * time.Millisecond)
+	if got := p.Snapshot(); got.PositionMs != 100 || got.Version != restarted.Version {
+		t.Fatalf("restarted backend did not advance correctly: %+v", got)
+	}
+}
+
 func TestCommandProcessorDeduplicatesAndReturnsOriginalResponse(t *testing.T) {
 	processor := newProcessorWithClock(t, newFakePlaybackClock())
 	request := commandRequest("request-1", protocol.PlaybackPlay, `{"track_id":"a"}`)

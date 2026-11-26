@@ -40,6 +40,7 @@ Owner: João (system integration and distributed-failure testing); component dev
 | U18 | Two concurrent identical IDs | Exactly one mutation |
 | U19 | Reuse ID after cache eviction/restart | No exactly-once guarantee; test documented behavior |
 | U20 | Simulation clock, pause/resume and stop | Monotonic elapsed position; no tick-driven version increment |
+| U21 | Stop then Play same selected track, repeatedly | Restart at 0; same occurrence, history and upcoming unchanged; one version increment per restart |
 
 ## Integration test matrix
 | ID | Setup/action | Expected |
