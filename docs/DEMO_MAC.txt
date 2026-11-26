@@ -1,12 +1,12 @@
 ROOMPLAY — MACBOOK DEMO
 Prepared November 25, 2026. Source snapshot: 23481c5 (P5 + Stop/Play fix).
 
-Use the P5 branch until its PR is merged. With Git installed, get a fresh copy:
-git clone --branch test/p5-process-failures --single-branch https://github.com/pkz074/RoomPlay.git "$HOME/Downloads/RoomPlay-demo"
+P5 is merged. With Git installed, get a fresh copy of main:
+git clone --branch main --single-branch https://github.com/pkz074/RoomPlay.git "$HOME/Downloads/RoomPlay-demo"
 
 Alternatively extract the supplied RoomPlay-demo-source.zip into
 Downloads/RoomPlay-demo; that method needs no Git. Do not mix copies into an older
-checkout. The playback code snapshot is 23481c5; this branch also contains runbooks.
+checkout. The playback code snapshot is 23481c5; main also contains these runbooks.
 
 ONE-TIME PREPARATION — DO THIS BEFORE THE PRESENTATION
 
