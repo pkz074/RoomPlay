@@ -340,6 +340,8 @@
         dom.historyList.parentElement.insertAdjacentElement("afterend", queueCard);
         document.getElementById("queueList").innerHTML = queueEntries(queue);
       }
+      // Every render replaces the buttons, including room switches and refreshes.
+      bindQueueRemoveButtons();
     }
 
     function queueEntries(queue) {
